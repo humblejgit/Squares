@@ -1,0 +1,6 @@
+out/
+target/
+dist/
+sources.txt
+todo.txt
+*.class
