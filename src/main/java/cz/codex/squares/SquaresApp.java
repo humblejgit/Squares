@@ -48,9 +48,7 @@ public final class SquaresApp {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setContentPane(panel);
         configureGameMode(frame, panel, boardSize, gameMode);
-        frame.pack();
-        frame.setMinimumSize(frame.getSize());
-        frame.setLocationRelativeTo(null);
+        fitWindowToContent(frame);
         frame.setVisible(true);
     }
 
@@ -137,20 +135,24 @@ public final class SquaresApp {
         JMenu gameMenu = new JMenu(Messages.MENU_GAME);
         JMenuItem changeSizeItem = new JMenuItem(Messages.MENU_CHANGE_SIZE);
         JCheckBoxMenuItem soundsItem = new JCheckBoxMenuItem(Messages.MENU_SOUNDS, SoundPlayer.isEnabled());
+        JMenuItem aboutItem = new JMenuItem(Messages.MENU_ABOUT);
         JMenuItem exitItem = new JMenuItem(Messages.MENU_EXIT);
 
         changeSizeItem.addActionListener(event -> changeSizeAction.run());
         soundsItem.addActionListener(event -> SoundPlayer.setEnabled(soundsItem.isSelected()));
+        aboutItem.addActionListener(event -> showAbout(frame));
         exitItem.addActionListener(event -> exitApplication(frame));
         gameMenu.add(changeSizeItem);
         gameMenu.add(soundsItem);
+        gameMenu.addSeparator();
+        gameMenu.add(aboutItem);
         gameMenu.addSeparator();
         gameMenu.add(exitItem);
         menuBar.add(gameMenu);
         frame.setJMenuBar(menuBar);
         frame.revalidate();
         frame.repaint();
-        frame.pack();
+        fitWindowToContent(frame);
     }
 
     private static void askHostForBoardSizeChange(JFrame frame, NetworkGame.HostController hostController) {
@@ -163,9 +165,7 @@ public final class SquaresApp {
 
         if (choice == JOptionPane.YES_OPTION) {
             hostController.changeBoardSize(boardSize, boardSize);
-            frame.pack();
-            frame.setMinimumSize(frame.getSize());
-            frame.setLocationRelativeTo(null);
+            fitWindowToContent(frame);
         }
     }
 
@@ -180,15 +180,27 @@ public final class SquaresApp {
         if (choice == JOptionPane.YES_OPTION) {
             panel.resizeBoard(boardSize, boardSize);
             panel.setNetworkInfo(Messages.localInfo(boardSize, boardSize));
-            frame.pack();
-            frame.setMinimumSize(frame.getSize());
-            frame.setLocationRelativeTo(null);
+            fitWindowToContent(frame);
         }
+    }
+
+    static void fitWindowToContent(JFrame frame) {
+        frame.setMinimumSize(null);
+        frame.pack();
+        frame.setMinimumSize(frame.getSize());
+        frame.setLocationRelativeTo(null);
     }
 
     private static void exitApplication(JFrame frame) {
         frame.dispose();
         System.exit(0);
+    }
+
+    private static void showAbout(JFrame frame) {
+        JOptionPane.showMessageDialog(frame,
+                Messages.aboutText(),
+                Messages.ABOUT_TITLE,
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     private static void askForNewLocalGame(JFrame frame, SquaresPanel panel, String message) {

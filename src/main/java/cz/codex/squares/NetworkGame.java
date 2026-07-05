@@ -72,6 +72,10 @@ final class NetworkGame {
                     startNewGameIfBothConfirmed(panel, output, hostReadyForNewGame, clientReadyForNewGame);
                 } else if ("RESTART_REQUEST".equals(line)) {
                     askHostForClientRestart(panel, output);
+                } else if ("RESTART_ACCEPT".equals(line)) {
+                    restartNetworkGame(panel, output);
+                } else if ("RESTART_DECLINE".equals(line)) {
+                    showMessage(panel, Messages.RESTART_DECLINED_BY_CLIENT, Messages.RESTART_TITLE);
                 }
             }
         } catch (IOException exception) {
@@ -100,6 +104,10 @@ final class NetworkGame {
                     output.println("GAME_OVER_ACK");
                 } else if ("RESET".equals(line) && panel[0] != null) {
                     SwingUtilities.invokeLater(panel[0]::resetGame);
+                } else if ("RESTART_REQUEST_FROM_HOST".equals(line) && panel[0] != null) {
+                    askClientForHostRestart(panel[0], output);
+                } else if ("RESTART_DECLINE".equals(line) && panel[0] != null) {
+                    showMessage(panel[0], Messages.RESTART_DECLINED_BY_HOST, Messages.RESTART_TITLE);
                 }
             }
         } catch (IOException exception) {
@@ -133,9 +141,7 @@ final class NetworkGame {
             });
 
             frame.setContentPane(panel);
-            frame.pack();
-            frame.setMinimumSize(frame.getSize());
-            frame.setLocationRelativeTo(null);
+            SquaresApp.fitWindowToContent(frame);
             createdPanel[0] = panel;
         });
 
@@ -202,7 +208,7 @@ final class NetworkGame {
                 JOptionPane.QUESTION_MESSAGE));
 
         if (choice[0] == JOptionPane.YES_OPTION) {
-            restartNetworkGame(panel, output);
+            output.println("RESTART_REQUEST_FROM_HOST");
         }
     }
 
@@ -217,12 +223,30 @@ final class NetworkGame {
 
         if (choice[0] == JOptionPane.YES_OPTION) {
             restartNetworkGame(panel, output);
+        } else {
+            output.println("RESTART_DECLINE");
         }
+    }
+
+    private static void askClientForHostRestart(SquaresPanel panel, PrintWriter output) {
+        int[] choice = new int[1];
+
+        runOnEventThread(() -> choice[0] = JOptionPane.showConfirmDialog(panel,
+                Messages.RESTART_REQUEST_FROM_HOST,
+                Messages.RESTART_TITLE,
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE));
+
+        output.println(choice[0] == JOptionPane.YES_OPTION ? "RESTART_ACCEPT" : "RESTART_DECLINE");
     }
 
     private static void showClientGameOver(SquaresPanel panel, String message) {
         runOnEventThread(() ->
                 JOptionPane.showMessageDialog(panel, message, Messages.GAME_OVER_TITLE, JOptionPane.INFORMATION_MESSAGE));
+    }
+
+    private static void showMessage(SquaresPanel panel, String message, String title) {
+        runOnEventThread(() -> JOptionPane.showMessageDialog(panel, message, title, JOptionPane.INFORMATION_MESSAGE));
     }
 
     private static void startNewGameIfBothConfirmed(SquaresPanel panel, PrintWriter output,

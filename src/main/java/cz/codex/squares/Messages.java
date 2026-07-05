@@ -22,7 +22,9 @@ final class Messages {
     static final String MENU_GAME = "Hra";
     static final String MENU_CHANGE_SIZE = "Zm\u011bnit velikost pole...";
     static final String MENU_SOUNDS = "Zvuky";
+    static final String MENU_ABOUT = "O h\u0159e";
     static final String MENU_EXIT = "Ukon\u010dit";
+    static final String ABOUT_TITLE = "O h\u0159e";
     static final String CHANGE_SIZE_TITLE = "Zm\u011bna velikosti";
     static final String OPTION_YES = "Ano";
     static final String OPTION_NO = "Ne";
@@ -35,6 +37,9 @@ final class Messages {
     static final String RESTART_WAITING_FOR_CLIENT = "Restart bude dostupn\u00fd po p\u0159ipojen\u00ed klienta.";
     static final String RESTART_REQUEST_SENT = "\u017d\u00e1dost o restart byla odesl\u00e1na hostiteli.";
     static final String RESTART_REQUEST_FROM_CLIENT = "P\u0159ipojen\u00fd hr\u00e1\u010d si p\u0159eje restartovat hru.\n\nPovolit restart?";
+    static final String RESTART_REQUEST_FROM_HOST = "Hostitel si p\u0159eje restartovat hru.\n\nPovolit restart?";
+    static final String RESTART_DECLINED_BY_CLIENT = "Klient restart hry nepotvrdil.";
+    static final String RESTART_DECLINED_BY_HOST = "Hostitel restart hry nepotvrdil.";
 
     static final String GAME_OVER_TITLE = "Konec hry";
     static final String NEW_GAME_PROMPT = "Chcete pokra\u010dovat novou hrou?";
@@ -42,6 +47,12 @@ final class Messages {
     static final String NETWORK_HOST_ENDED = "Hostitel ukon\u010dil s\u00ed\u0165ovou hru.";
     static final String NETWORK_CONNECT_FAILED = "Nepoda\u0159ilo se p\u0159ipojit nebo spojen\u00ed spadlo.";
     static final String INVALID_SIZE_MESSAGE = "Neplatn\u00e1 zpr\u00e1va velikosti plochy: ";
+    static final String BUILD_INFO_PREFIX = "Build: ";
+    static final String BUILD_INFO_UNKNOWN = "nezn\u00e1m\u00fd";
+    static final String HELP_TEXT = "C\u00edlem hry je uzav\u00edrat \u010dtvere\u010dky.\n"
+            + "Hr\u00e1\u010di se st\u0159\u00eddaj\u00ed v ozna\u010dov\u00e1n\u00ed hran.\n"
+            + "Kdo uzav\u0159e \u010dtvere\u010dek, z\u00edsk\u00e1 bod a hraje znovu.\n"
+            + "Vyhr\u00e1v\u00e1 hr\u00e1\u010d s vy\u0161\u0161\u00edm po\u010dtem bod\u016f.";
 
     private Messages() {
     }
@@ -79,6 +90,12 @@ final class Messages {
     static String changeSizeConfirm(int rows, int columns) {
         return "Zm\u011bnit velikost pole na " + boardSize(rows, columns) + "?\n"
                 + "Aktu\u00e1ln\u00ed hra se restartuje.";
+    }
+
+    static String aboutText() {
+        return APP_TITLE + "\n"
+                + BUILD_INFO_PREFIX + BuildInfo.buildTime() + "\n\n"
+                + HELP_TEXT;
     }
 
     static String redWins(int redScore, int blueScore) {
