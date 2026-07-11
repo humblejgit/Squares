@@ -7,17 +7,18 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 final class BuildInfo {
+    private static final String BUILD_ID = "2.0.0";
     private static final String BUILD_TIME = resolveBuildTime();
 
     private BuildInfo() {
     }
 
     static String displayText() {
-        return Messages.BUILD_INFO_PREFIX + BUILD_TIME;
+        return Messages.BUILD_INFO_PREFIX + BUILD_ID + " (" + Messages.BUILD_FILE_TIME_PREFIX + BUILD_TIME + ")";
     }
 
-    static String buildTime() {
-        return BUILD_TIME;
+    static String buildId() {
+        return BUILD_ID;
     }
 
     private static String resolveBuildTime() {

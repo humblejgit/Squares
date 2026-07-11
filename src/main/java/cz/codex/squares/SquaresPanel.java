@@ -14,6 +14,9 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 final class SquaresPanel extends JPanel {
     private static final int CELL_SIZE = 48;
@@ -29,6 +32,7 @@ final class SquaresPanel extends JPanel {
     static final int NO_PLAYER = 0;
     static final int RED_PLAYER = 1;
     static final int BLUE_PLAYER = 2;
+    private static final int NEUTRAL_EDGE = 3;
 
     private static final Color BACKGROUND = new Color(248, 249, 250);
     private static final Color GRID_LINE = new Color(198, 204, 212);
@@ -52,15 +56,20 @@ final class SquaresPanel extends JPanel {
     private MoveHandler moveHandler;
     private GameOverHandler gameOverHandler;
     private RestartHandler restartHandler;
+    private ClockTickHandler clockTickHandler;
     private int localPlayer = NO_PLAYER;
     private int currentPlayer = RED_PLAYER;
     private EdgeHit lastMove;
     private int totalSeconds;
     private int redThinkingSeconds;
     private int blueThinkingSeconds;
+    private int thinkingTimeLimitSeconds;
     private String networkInfo = "";
     private boolean gameOverAnnounced;
     private boolean clockEnabled = true;
+    private boolean clockPausedByDialog;
+    private boolean windowActive = true;
+    private boolean randomInitialEdgesEnabled;
 
     SquaresPanel(int rows, int columns) {
         this.rows = rows;
@@ -298,6 +307,10 @@ final class SquaresPanel extends JPanel {
     }
 
     boolean applyMove(boolean horizontal, int rowOrLine, int columnOrLine) {
+        if (gameOverAnnounced) {
+            return false;
+        }
+
         EdgeHit edge = new EdgeHit(horizontal, rowOrLine, columnOrLine);
 
         if (isSelected(edge)) {
@@ -332,6 +345,10 @@ final class SquaresPanel extends JPanel {
         this.restartHandler = restartHandler;
     }
 
+    void setClockTickHandler(ClockTickHandler clockTickHandler) {
+        this.clockTickHandler = clockTickHandler;
+    }
+
     void setLocalPlayer(int localPlayer) {
         this.localPlayer = localPlayer;
     }
@@ -345,6 +362,28 @@ final class SquaresPanel extends JPanel {
         this.clockEnabled = clockEnabled;
     }
 
+    void setClockPausedByDialog(boolean clockPausedByDialog) {
+        this.clockPausedByDialog = clockPausedByDialog;
+    }
+
+    void setWindowActive(boolean windowActive) {
+        this.windowActive = windowActive;
+    }
+
+    void setThinkingTimeLimitSeconds(int thinkingTimeLimitSeconds) {
+        this.thinkingTimeLimitSeconds = Math.max(0, thinkingTimeLimitSeconds);
+        initializeTimes();
+        repaint();
+    }
+
+    void setRandomInitialEdgesEnabled(boolean randomInitialEdgesEnabled) {
+        this.randomInitialEdgesEnabled = randomInitialEdgesEnabled;
+    }
+
+    boolean randomInitialEdgesEnabled() {
+        return randomInitialEdgesEnabled;
+    }
+
     String networkInfo() {
         return networkInfo;
     }
@@ -355,11 +394,10 @@ final class SquaresPanel extends JPanel {
         clear(completedCells);
         hoveredEdge = null;
         lastMove = null;
-        totalSeconds = 0;
-        redThinkingSeconds = 0;
-        blueThinkingSeconds = 0;
+        initializeTimes();
         currentPlayer = RED_PLAYER;
         gameOverAnnounced = false;
+        generateRandomInitialEdges();
         repaint();
         SoundPlayer.gameStart();
     }
@@ -372,11 +410,10 @@ final class SquaresPanel extends JPanel {
         this.completedCells = new int[rows][columns];
         hoveredEdge = null;
         lastMove = null;
-        totalSeconds = 0;
-        redThinkingSeconds = 0;
-        blueThinkingSeconds = 0;
+        initializeTimes();
         currentPlayer = RED_PLAYER;
         gameOverAnnounced = false;
+        generateRandomInitialEdges();
 
         int width = columns * CELL_SIZE + PADDING * 2;
         int height = rows * CELL_SIZE + PADDING * 2 + STATUS_HEIGHT + INFO_HEIGHT;
@@ -397,6 +434,10 @@ final class SquaresPanel extends JPanel {
 
     int boardColumns() {
         return columns;
+    }
+
+    int thinkingTimeLimitSeconds() {
+        return thinkingTimeLimitSeconds;
     }
 
     String encodeState() {
@@ -460,6 +501,85 @@ final class SquaresPanel extends JPanel {
         }
     }
 
+    private void generateRandomInitialEdges() {
+        if (!randomInitialEdgesEnabled) {
+            return;
+        }
+
+        List<EdgeHit> candidates = new ArrayList<>();
+
+        for (int row = 1; row < rows; row++) {
+            for (int column = 0; column < columns; column++) {
+                candidates.add(new EdgeHit(true, row, column));
+            }
+        }
+
+        for (int row = 0; row < rows; row++) {
+            for (int column = 1; column < columns; column++) {
+                candidates.add(new EdgeHit(false, row, column));
+            }
+        }
+
+        Collections.shuffle(candidates);
+
+        int targetCount = Math.min(candidates.size(), Math.max(1, rows * columns / 3));
+        int generatedCount = 0;
+
+        for (EdgeHit edge : candidates) {
+            if (generatedCount >= targetCount) {
+                return;
+            }
+
+            if (canAddRandomInitialEdge(edge)) {
+                setEdgeOwner(edge, NEUTRAL_EDGE);
+                generatedCount++;
+            }
+        }
+    }
+
+    private boolean canAddRandomInitialEdge(EdgeHit edge) {
+        setEdgeOwner(edge, NEUTRAL_EDGE);
+        boolean createsAlmostCompletedCell = hasAlmostCompletedCellAround(edge);
+        setEdgeOwner(edge, NO_PLAYER);
+        return !createsAlmostCompletedCell;
+    }
+
+    private boolean hasAlmostCompletedCellAround(EdgeHit edge) {
+        if (edge.horizontal) {
+            return hasAtLeastThreeEdgesIfValid(edge.rowOrLine - 1, edge.columnOrLine)
+                    || hasAtLeastThreeEdgesIfValid(edge.rowOrLine, edge.columnOrLine);
+        }
+
+        return hasAtLeastThreeEdgesIfValid(edge.rowOrLine, edge.columnOrLine - 1)
+                || hasAtLeastThreeEdgesIfValid(edge.rowOrLine, edge.columnOrLine);
+    }
+
+    private boolean hasAtLeastThreeEdgesIfValid(int row, int column) {
+        return row >= 0 && row < rows && column >= 0 && column < columns && countCellEdges(row, column) >= 3;
+    }
+
+    private int countCellEdges(int row, int column) {
+        int count = 0;
+
+        if (hasHorizontalEdge(row, column)) {
+            count++;
+        }
+
+        if (hasHorizontalEdge(row + 1, column)) {
+            count++;
+        }
+
+        if (hasVerticalEdge(row, column)) {
+            count++;
+        }
+
+        if (hasVerticalEdge(row, column + 1)) {
+            count++;
+        }
+
+        return count;
+    }
+
     private void requestRestart() {
         if (restartHandler != null) {
             restartHandler.restartRequested();
@@ -467,19 +587,67 @@ final class SquaresPanel extends JPanel {
     }
 
     private void updateClock() {
-        if (!clockEnabled || gameOverAnnounced) {
+        if (!clockEnabled || clockPausedByDialog || !windowActive || gameOverAnnounced) {
             return;
         }
 
         totalSeconds++;
+        boolean timeExpired = false;
 
-        if (currentPlayer == RED_PLAYER) {
+        if (hasThinkingTimeLimit()) {
+            if (currentPlayer == RED_PLAYER) {
+                redThinkingSeconds = Math.max(0, redThinkingSeconds - 1);
+                timeExpired = redThinkingSeconds == 0;
+            } else if (currentPlayer == BLUE_PLAYER) {
+                blueThinkingSeconds = Math.max(0, blueThinkingSeconds - 1);
+                timeExpired = blueThinkingSeconds == 0;
+            }
+        } else if (currentPlayer == RED_PLAYER) {
             redThinkingSeconds++;
         } else if (currentPlayer == BLUE_PLAYER) {
             blueThinkingSeconds++;
         }
 
         repaint();
+
+        if (clockTickHandler != null) {
+            clockTickHandler.clockTick();
+        }
+
+        if (timeExpired) {
+            announceTimeLoss();
+        }
+    }
+
+    private void initializeTimes() {
+        totalSeconds = 0;
+
+        if (hasThinkingTimeLimit()) {
+            redThinkingSeconds = thinkingTimeLimitSeconds;
+            blueThinkingSeconds = thinkingTimeLimitSeconds;
+        } else {
+            redThinkingSeconds = 0;
+            blueThinkingSeconds = 0;
+        }
+    }
+
+    private boolean hasThinkingTimeLimit() {
+        return thinkingTimeLimitSeconds > 0;
+    }
+
+    private void announceTimeLoss() {
+        if (gameOverAnnounced) {
+            return;
+        }
+
+        gameOverAnnounced = true;
+        SoundPlayer.gameOver();
+
+        if (gameOverHandler != null) {
+            gameOverHandler.gameOver(currentPlayer == RED_PLAYER
+                    ? Messages.redLostOnTime()
+                    : Messages.blueLostOnTime());
+        }
     }
 
     private String encodeLastMove() {
@@ -508,19 +676,23 @@ final class SquaresPanel extends JPanel {
     }
 
     private String encodeTimes() {
-        return totalSeconds + "," + redThinkingSeconds + "," + blueThinkingSeconds;
+        return totalSeconds + "," + redThinkingSeconds + "," + blueThinkingSeconds + "," + thinkingTimeLimitSeconds;
     }
 
     private void decodeTimes(String encoded) {
         String[] parts = encoded.split(",");
 
-        if (parts.length != 3) {
+        if (parts.length != 3 && parts.length != 4) {
             return;
         }
 
         totalSeconds = Integer.parseInt(parts[0]);
         redThinkingSeconds = Integer.parseInt(parts[1]);
         blueThinkingSeconds = Integer.parseInt(parts[2]);
+
+        if (parts.length == 4) {
+            thinkingTimeLimitSeconds = Integer.parseInt(parts[3]);
+        }
     }
 
     private EdgeHit findEdgeAt(int mouseX, int mouseY) {
@@ -733,7 +905,15 @@ final class SquaresPanel extends JPanel {
     }
 
     private Color edgeColor(int owner) {
-        return owner == RED_PLAYER ? RED_EDGE : BLUE_EDGE;
+        if (owner == RED_PLAYER) {
+            return RED_EDGE;
+        }
+
+        if (owner == BLUE_PLAYER) {
+            return BLUE_EDGE;
+        }
+
+        return OUTER_BORDER;
     }
 
     private Color ghostColor(int owner) {
@@ -798,5 +978,9 @@ final class SquaresPanel extends JPanel {
 
     interface RestartHandler {
         void restartRequested();
+    }
+
+    interface ClockTickHandler {
+        void clockTick();
     }
 }

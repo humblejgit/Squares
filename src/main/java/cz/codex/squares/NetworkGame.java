@@ -12,12 +12,13 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 final class NetworkGame {
     private NetworkGame() {
     }
 
-    static HostController host(SquaresPanel panel, String hostAddress, int port) {
+    static HostController host(JFrame frame, SquaresPanel panel, String hostAddress, int port) {
         HostController controller = new HostController(panel, hostAddress, port);
         panel.setLocalPlayer(SquaresPanel.RED_PLAYER);
         panel.setClockEnabled(false);
@@ -28,7 +29,7 @@ final class NetworkGame {
                 JOptionPane.showMessageDialog(panel, Messages.RESTART_WAITING_FOR_CLIENT,
                         Messages.RESTART_TITLE, JOptionPane.INFORMATION_MESSAGE));
 
-        Thread serverThread = new Thread(() -> runServer(panel, port, controller), "squares-server");
+        Thread serverThread = new Thread(() -> runServer(frame, panel, port, controller), "squares-server");
         serverThread.setDaemon(true);
         serverThread.start();
         return controller;
@@ -40,7 +41,7 @@ final class NetworkGame {
         clientThread.start();
     }
 
-    private static void runServer(SquaresPanel panel, int port, HostController controller) {
+    private static void runServer(JFrame frame, SquaresPanel panel, int port, HostController controller) {
         try (ServerSocket serverSocket = new ServerSocket(port);
              Socket socket = serverSocket.accept();
              BufferedReader input = reader(socket);
@@ -49,13 +50,19 @@ final class NetworkGame {
             boolean[] clientReadyForNewGame = {false};
             controller.setOutput(output);
 
+            if (!verifyClientBuild(panel, input, output)) {
+                return;
+            }
+
             output.println("SIZE " + panel.boardRows() + " " + panel.boardColumns());
+            ChatPanel chat = createChatPanel(frame, panel, Messages.CHAT_HOST_TITLE, output);
             String clientAddress = socket.getInetAddress().getHostAddress();
             controller.setClientAddress(clientAddress);
             panel.setClockEnabled(true);
             panel.setGameOverHandler(message ->
                     askHostForNewGame(panel, output, hostReadyForNewGame, clientReadyForNewGame, message));
             panel.setRestartHandler(() -> askHostForRestart(panel, output));
+            panel.setClockTickHandler(() -> sendState(panel, output));
             panel.setMoveHandler((horizontal, rowOrLine, columnOrLine) -> {
                 if (panel.applyMove(horizontal, rowOrLine, columnOrLine)) {
                     sendState(panel, output);
@@ -71,11 +78,13 @@ final class NetworkGame {
                     clientReadyForNewGame[0] = true;
                     startNewGameIfBothConfirmed(panel, output, hostReadyForNewGame, clientReadyForNewGame);
                 } else if ("RESTART_REQUEST".equals(line)) {
-                    askHostForClientRestart(panel, output);
+                    askHostForClientRestart(panel, output, controller);
                 } else if ("RESTART_ACCEPT".equals(line)) {
                     restartNetworkGame(panel, output);
                 } else if ("RESTART_DECLINE".equals(line)) {
                     showMessage(panel, Messages.RESTART_DECLINED_BY_CLIENT, Messages.RESTART_TITLE);
+                } else if (line.startsWith("CHAT ")) {
+                    receiveChatMessage(chat, Messages.CHAT_CLIENT, line);
                 }
             }
         } catch (IOException exception) {
@@ -90,11 +99,31 @@ final class NetworkGame {
              BufferedReader input = reader(socket);
              PrintWriter output = writer(socket)) {
             SquaresPanel[] panel = new SquaresPanel[1];
+            ChatPanel[] chat = new ChatPanel[1];
+            boolean buildVerified = false;
 
             String line;
             while ((line = input.readLine()) != null) {
-                if (line.startsWith("SIZE ")) {
-                    panel[0] = createClientPanel(frame, host, port, output, line);
+                if (!buildVerified) {
+                    if (!line.startsWith("BUILD ")) {
+                        showNetworkMessage(frame, Messages.NETWORK_INCOMPATIBLE_PROTOCOL);
+                        closeFrame(frame);
+                        return;
+                    }
+
+                    String hostBuild = decodeNetworkValue(line.substring("BUILD ".length()));
+                    output.println("BUILD " + encodeNetworkValue(BuildInfo.buildId()));
+                    String buildResult = input.readLine();
+
+                    if (!"BUILD_OK".equals(buildResult)) {
+                        showNetworkMessage(frame, Messages.buildMismatch(hostBuild, BuildInfo.buildId()));
+                        closeFrame(frame);
+                        return;
+                    }
+
+                    buildVerified = true;
+                } else if (line.startsWith("SIZE ")) {
+                    panel[0] = createClientPanel(frame, host, port, output, line, chat);
                 } else if (line.startsWith("STATE ") && panel[0] != null) {
                     String state = line.substring("STATE ".length());
                     SwingUtilities.invokeLater(() -> panel[0].applyEncodedState(state));
@@ -108,6 +137,10 @@ final class NetworkGame {
                     askClientForHostRestart(panel[0], output);
                 } else if ("RESTART_DECLINE".equals(line) && panel[0] != null) {
                     showMessage(panel[0], Messages.RESTART_DECLINED_BY_HOST, Messages.RESTART_TITLE);
+                } else if ("RESTART_BUSY".equals(line) && panel[0] != null) {
+                    showMessage(panel[0], Messages.RESTART_HOST_BUSY, Messages.RESTART_TITLE);
+                } else if (line.startsWith("CHAT ")) {
+                    receiveChatMessage(chat[0], Messages.CHAT_HOST, line);
                 }
             }
         } catch (IOException exception) {
@@ -115,7 +148,8 @@ final class NetworkGame {
         }
     }
 
-    private static SquaresPanel createClientPanel(JFrame frame, String host, int port, PrintWriter output, String line) {
+    private static SquaresPanel createClientPanel(JFrame frame, String host, int port, PrintWriter output, String line,
+                                                   ChatPanel[] chat) {
         String[] parts = line.split(" ");
 
         if (parts.length != 3) {
@@ -129,6 +163,7 @@ final class NetworkGame {
         runOnEventThread(() -> {
             SquaresPanel panel = new SquaresPanel(rows, columns);
             panel.setLocalPlayer(SquaresPanel.BLUE_PLAYER);
+            panel.setClockEnabled(false);
             panel.setNetworkInfo(Messages.clientInfo(host, port, rows, columns) + "  |  " + Messages.connected());
             panel.setMoveHandler((horizontal, rowOrLine, columnOrLine) ->
                     output.println("MOVE " + edgeType(horizontal) + " " + rowOrLine + " " + columnOrLine));
@@ -140,8 +175,14 @@ final class NetworkGame {
                         JOptionPane.INFORMATION_MESSAGE);
             });
 
-            frame.setContentPane(panel);
-            SquaresApp.fitWindowToContent(frame);
+            if (chat[0] == null) {
+                chat[0] = new ChatPanel(Messages.CHAT_CLIENT_TITLE,
+                        ChatPanel.BLUE_MESSAGE_BACKGROUND,
+                        ChatPanel.RED_MESSAGE_BACKGROUND,
+                        message -> output.println("CHAT " + encodeChatMessage(message)));
+            }
+
+            SquaresApp.showNetworkContent(frame, panel, chat[0]);
             createdPanel[0] = panel;
         });
 
@@ -154,6 +195,74 @@ final class NetworkGame {
 
     private static PrintWriter writer(Socket socket) throws IOException {
         return new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
+    }
+
+    private static boolean verifyClientBuild(SquaresPanel panel, BufferedReader input, PrintWriter output)
+            throws IOException {
+        String hostBuild = BuildInfo.buildId();
+        output.println("BUILD " + encodeNetworkValue(hostBuild));
+
+        String line = input.readLine();
+
+        if (line == null || !line.startsWith("BUILD ")) {
+            output.println("BUILD_MISMATCH");
+            showMessage(panel, Messages.NETWORK_INCOMPATIBLE_PROTOCOL, Messages.NETWORK_GAME_TITLE);
+            return false;
+        }
+
+        String clientBuild = decodeNetworkValue(line.substring("BUILD ".length()));
+
+        if (!hostBuild.equals(clientBuild)) {
+            output.println("BUILD_MISMATCH");
+            showMessage(panel, Messages.buildMismatch(hostBuild, clientBuild), Messages.NETWORK_GAME_TITLE);
+            return false;
+        }
+
+        output.println("BUILD_OK");
+        return true;
+    }
+
+    private static ChatPanel createChatPanel(JFrame frame, SquaresPanel panel, String title, PrintWriter output) {
+        ChatPanel[] chat = new ChatPanel[1];
+
+        runOnEventThread(() -> {
+            chat[0] = new ChatPanel(title,
+                    ChatPanel.RED_MESSAGE_BACKGROUND,
+                    ChatPanel.BLUE_MESSAGE_BACKGROUND,
+                    message -> output.println("CHAT " + encodeChatMessage(message)));
+            SquaresApp.showNetworkContent(frame, panel, chat[0]);
+        });
+
+        return chat[0];
+    }
+
+    private static void receiveChatMessage(ChatPanel chat, String sender, String line) {
+        String message = decodeChatMessage(line.substring("CHAT ".length()));
+        runOnEventThread(() -> {
+            if (chat != null) {
+                chat.receive(sender, message);
+            }
+        });
+    }
+
+    private static String encodeChatMessage(String message) {
+        return encodeNetworkValue(message);
+    }
+
+    private static String decodeChatMessage(String encoded) {
+        return decodeNetworkValue(encoded);
+    }
+
+    private static String encodeNetworkValue(String message) {
+        return Base64.getEncoder().encodeToString(message.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decodeNetworkValue(String encoded) {
+        try {
+            return new String(Base64.getDecoder().decode(encoded), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException exception) {
+            return "";
+        }
     }
 
     private static void applyRemoteMove(SquaresPanel panel, PrintWriter output, String line) {
@@ -212,7 +321,12 @@ final class NetworkGame {
         }
     }
 
-    private static void askHostForClientRestart(SquaresPanel panel, PrintWriter output) {
+    private static void askHostForClientRestart(SquaresPanel panel, PrintWriter output, HostController controller) {
+        if (controller.isSettingsDialogOpen()) {
+            output.println("RESTART_BUSY");
+            return;
+        }
+
         int[] choice = new int[1];
 
         runOnEventThread(() -> choice[0] = JOptionPane.showConfirmDialog(panel,
@@ -294,12 +408,22 @@ final class NetworkGame {
                         Messages.NETWORK_GAME_TITLE, JOptionPane.WARNING_MESSAGE));
     }
 
+    private static void showNetworkMessage(JFrame frame, String message) {
+        SwingUtilities.invokeLater(() ->
+                JOptionPane.showMessageDialog(frame, message, Messages.NETWORK_GAME_TITLE, JOptionPane.WARNING_MESSAGE));
+    }
+
+    private static void closeFrame(JFrame frame) {
+        SwingUtilities.invokeLater(frame::dispose);
+    }
+
     static final class HostController {
         private final SquaresPanel panel;
         private final String hostAddress;
         private final int port;
         private volatile PrintWriter output;
         private volatile String clientAddress;
+        private volatile boolean settingsDialogOpen;
 
         private HostController(SquaresPanel panel, String hostAddress, int port) {
             this.panel = panel;
@@ -307,8 +431,10 @@ final class NetworkGame {
             this.port = port;
         }
 
-        void changeBoardSize(int rows, int columns) {
+        void changeSettings(int rows, int columns, int thinkingTimeLimitSeconds, boolean randomInitialEdgesEnabled) {
             runOnEventThread(() -> {
+                panel.setThinkingTimeLimitSeconds(thinkingTimeLimitSeconds);
+                panel.setRandomInitialEdgesEnabled(randomInitialEdgesEnabled);
                 panel.resizeBoard(rows, columns);
                 refreshNetworkInfo();
             });
@@ -330,6 +456,26 @@ final class NetworkGame {
             }
 
             panel.setNetworkInfo(info);
+        }
+
+        int boardSize() {
+            return panel.boardRows();
+        }
+
+        int thinkingTimeLimitSeconds() {
+            return panel.thinkingTimeLimitSeconds();
+        }
+
+        boolean randomInitialEdgesEnabled() {
+            return panel.randomInitialEdgesEnabled();
+        }
+
+        void setSettingsDialogOpen(boolean settingsDialogOpen) {
+            this.settingsDialogOpen = settingsDialogOpen;
+        }
+
+        boolean isSettingsDialogOpen() {
+            return settingsDialogOpen;
         }
 
         private void setOutput(PrintWriter output) {
