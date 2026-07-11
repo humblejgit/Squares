@@ -13,8 +13,8 @@ final class Messages {
 
     static final String HOST_ADDRESS_PROMPT = "IP adresa hostitele:";
     static final String CONNECTING_TO_HOST = "P\u0159ipojov\u00e1n\u00ed k hostiteli...";
-    static final String CHAT_HOST_TITLE = "Squares - chat hostitele";
-    static final String CHAT_CLIENT_TITLE = "Squares - chat klienta";
+    static final String CHAT_HOST_TITLE = "Chat";
+    static final String CHAT_CLIENT_TITLE = "Chat";
     static final String CHAT_SEND = "Odeslat";
     static final String CHAT_EMOTICONS = "Emotikony";
     static final String CHAT_YOU = "J\u00e1";
@@ -27,10 +27,9 @@ final class Messages {
     static final String THINK_TIME_NONE = "Bez limitu";
     static final String BOARD_SIZE_PROMPT = "Vyber velikost hrac\u00ed plochy:";
     static final String BOARD_SIZE_TITLE = "Squares - velikost";
-    static final String PORT_PROMPT = "Port:";
     static final String ADAPTER_PROMPT = "Vyber s\u00ed\u0165ov\u00fd adapt\u00e9r pro IP adresu serveru:";
     static final String ADAPTER_TITLE = "Squares - adapt\u00e9r";
-    static final String VIRTUAL_ADAPTER_SUFFIX = " (virtu\u00e1ln\u00ed)";
+    static final String NO_NETWORK_ADAPTER = "Nebyl nalezen \u017e\u00e1dn\u00fd vhodn\u00fd s\u00ed\u0165ov\u00fd adapt\u00e9r.\n\nHostitelskou hru nelze spustit.";
     static final String MENU_GAME = "Hra";
     static final String MENU_SETTINGS = "Nastaven\u00ed";
     static final String MENU_SOUNDS = "Zvuky";
@@ -74,33 +73,31 @@ final class Messages {
     }
 
     static String hostInfo(String address, int port, int rows, int columns) {
-        return "Hostitel: " + address + "  Port: " + port + "  Plocha: " + boardSize(rows, columns);
+        return "IP: " + address + ":" + port + "\n"
+                + "Plocha: " + boardSize(rows, columns);
     }
 
     static String clientInfo(String host, int port, int rows, int columns) {
-        return "Klient: p\u0159ipojeno k " + host + "  Port: " + port + "  Plocha: " + boardSize(rows, columns);
+        return "IP: " + host + ":" + port + "\n"
+                + "Plocha: " + boardSize(rows, columns);
     }
 
     static String localInfo(int rows, int columns) {
-        return "Lok\u00e1ln\u00ed hra na jednom PC  Plocha: " + boardSize(rows, columns);
+        return "IP: lok\u00e1ln\u00ed hra\n"
+                + "Plocha: " + boardSize(rows, columns) + "\n"
+                + "Status: oba hr\u00e1\u010di na tomto PC";
     }
 
     static String waitingForClient() {
-        return "\u010cek\u00e1m na klienta...";
+        return "Status: \u010dek\u00e1m na klienta...";
     }
 
     static String clientConnected(String address) {
-        return "Klient p\u0159ipojen: " + address;
+        return "Status: klient p\u0159ipojen: " + address;
     }
 
     static String connected() {
-        return "P\u0159ipojeno";
-    }
-
-    static String hostStarted(int port, String address, int rows, int columns) {
-        return "Hostitel b\u011b\u017e\u00ed na portu " + port + ".\n"
-                + "Druh\u00fd hr\u00e1\u010d se p\u0159ipoj\u00ed na IP adresu: " + address + "\n"
-                + "Velikost hrac\u00ed plochy: " + boardSize(rows, columns);
+        return "Status: p\u0159ipojeno";
     }
 
     static String settingsRestartConfirm() {

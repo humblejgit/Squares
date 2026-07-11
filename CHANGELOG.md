@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.1 - 2026-07-11
+
+- Ghost hrana se v sitove hre zobrazuje jen pri tahu lokalniho hrace.
+- Cas hostitele se pri cekani na klienta drzi na nule a spousti se az po pripojeni klienta.
+- Sitova hra automaticky pouziva port 1080 bez dotazu.
+- Vyber sitoveho adapteru nenabizi virtualni adaptery; pri jedinem vhodnem adapteru se vyber preskoci.
+- Pokud neni nalezen zadny vhodny sitovy adapter, hostitelska hra se nespusti a zobrazi jasnou hlasku.
+- Spodni sitove info se zobrazuje ve trech radcich: IP:port, plocha a stav klienta.
+- Startovni informacni dialog hostitele byl odstraneny.
+- Chat dostal zvuk prichozi zpravy, jednodussi nadpis a upravene rozlozeni emotikonu.
+- Chatove zpravy a vstup pouzivaji bezny font kvuli cestine; emoji tlacitka zustavaji ve fontu Segoe UI Emoji.
+
 ## 2.0 - 2026-07-06
 
 - Pridan vestaveny chat pro sitovou hru vcetne emotikonu, rychlych textu a casu odeslani zpravy.

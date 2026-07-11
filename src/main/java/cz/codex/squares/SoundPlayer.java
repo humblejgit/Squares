@@ -36,6 +36,10 @@ final class SoundPlayer {
         playAsync(new Tone(880, 120), new Tone(660, 120), new Tone(520, 160));
     }
 
+    static void chatMessage() {
+        playAsync(new Tone(1040, 55), new Tone(1320, 85));
+    }
+
     private static void playAsync(Tone... tones) {
         if (!enabled) {
             return;

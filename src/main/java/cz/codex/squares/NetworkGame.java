@@ -58,6 +58,7 @@ final class NetworkGame {
             ChatPanel chat = createChatPanel(frame, panel, Messages.CHAT_HOST_TITLE, output);
             String clientAddress = socket.getInetAddress().getHostAddress();
             controller.setClientAddress(clientAddress);
+            panel.resetClock();
             panel.setClockEnabled(true);
             panel.setGameOverHandler(message ->
                     askHostForNewGame(panel, output, hostReadyForNewGame, clientReadyForNewGame, message));
@@ -164,7 +165,7 @@ final class NetworkGame {
             SquaresPanel panel = new SquaresPanel(rows, columns);
             panel.setLocalPlayer(SquaresPanel.BLUE_PLAYER);
             panel.setClockEnabled(false);
-            panel.setNetworkInfo(Messages.clientInfo(host, port, rows, columns) + "  |  " + Messages.connected());
+            panel.setNetworkInfo(Messages.clientInfo(host, port, rows, columns) + "\n" + Messages.connected());
             panel.setMoveHandler((horizontal, rowOrLine, columnOrLine) ->
                     output.println("MOVE " + edgeType(horizontal) + " " + rowOrLine + " " + columnOrLine));
             panel.setRestartHandler(() -> {
@@ -450,9 +451,9 @@ final class NetworkGame {
             String info = Messages.hostInfo(hostAddress, port, panel.boardRows(), panel.boardColumns());
 
             if (clientAddress == null) {
-                info += "  |  " + Messages.waitingForClient();
+                info += "\n" + Messages.waitingForClient();
             } else {
-                info += "  |  " + Messages.clientConnected(clientAddress);
+                info += "\n" + Messages.clientConnected(clientAddress);
             }
 
             panel.setNetworkInfo(info);

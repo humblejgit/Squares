@@ -29,6 +29,7 @@ import java.util.List;
 
 public final class SquaresApp {
     private static final String CLOCK_PAUSE_LISTENER_PROPERTY = "squares.clockPauseListener";
+    private static final int DEFAULT_NETWORK_PORT = 1080;
     private static final int[] THINK_TIME_SECONDS = {0, 30, 60, 120, 300};
 
     private SquaresApp() {
@@ -69,7 +70,10 @@ public final class SquaresApp {
 
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setContentPane(panel);
-        configureGameMode(frame, panel, boardSize, gameMode);
+        if (!configureGameMode(frame, panel, boardSize, gameMode)) {
+            frame.dispose();
+            return;
+        }
         fitWindowToContent(frame);
         frame.setVisible(true);
     }
@@ -81,7 +85,7 @@ public final class SquaresApp {
             return;
         }
 
-        int port = askPort(null);
+        int port = DEFAULT_NETWORK_PORT;
         JFrame frame = new JFrame(Messages.WINDOW_CLIENT);
         JLabel connectingLabel = new JLabel(Messages.CONNECTING_TO_HOST, SwingConstants.CENTER);
 
@@ -102,17 +106,23 @@ public final class SquaresApp {
         return choice < 0 ? 0 : choice;
     }
 
-    private static void configureGameMode(JFrame frame, SquaresPanel panel, int boardSize, int gameMode) {
+    private static boolean configureGameMode(JFrame frame, SquaresPanel panel, int boardSize, int gameMode) {
         if (gameMode == 1) {
+            panel.setClockEnabled(false);
+            panel.resetClock();
             NetworkAddress networkAddress = askNetworkAddress(frame);
-            int port = askPort(frame);
+            if (networkAddress == null) {
+                JOptionPane.showMessageDialog(frame, Messages.NO_NETWORK_ADAPTER,
+                        Messages.ADAPTER_TITLE, JOptionPane.WARNING_MESSAGE);
+                return false;
+            }
+
+            int port = DEFAULT_NETWORK_PORT;
             frame.setTitle(Messages.WINDOW_HOST);
             panel.setNetworkInfo(Messages.hostInfo(networkAddress.address(), port, boardSize, boardSize));
             NetworkGame.HostController hostController = NetworkGame.host(frame, panel, networkAddress.address(), port);
             installGameMenu(frame, panel, false, () -> askHostForSettingsChange(frame, hostController));
-            JOptionPane.showMessageDialog(frame,
-                    Messages.hostStarted(port, networkAddress.address(), boardSize, boardSize),
-                    Messages.APP_TITLE, JOptionPane.INFORMATION_MESSAGE);
+            return true;
         } else {
             panel.setLocalPlayer(SquaresPanel.NO_PLAYER);
             panel.setNetworkInfo(Messages.localInfo(boardSize, boardSize));
@@ -121,6 +131,7 @@ public final class SquaresApp {
             installWindowPauseHandling(frame, panel);
             installGameMenu(frame, panel, true, () -> askLocalForSettingsChange(frame, panel));
             frame.setTitle(Messages.WINDOW_LOCAL);
+            return true;
         }
     }
 
@@ -372,25 +383,15 @@ public final class SquaresApp {
         }
     }
 
-    private static int askPort(JFrame frame) {
-        String value = JOptionPane.showInputDialog(frame, Messages.PORT_PROMPT, "5000");
-
-        if (isBlank(value)) {
-            return 5000;
-        }
-
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (NumberFormatException exception) {
-            return 5000;
-        }
-    }
-
     private static NetworkAddress askNetworkAddress(JFrame frame) {
         List<NetworkAddress> addresses = localIpAddresses();
 
         if (addresses.isEmpty()) {
-            return new NetworkAddress("127.0.0.1", "localhost");
+            return null;
+        }
+
+        if (addresses.size() == 1) {
+            return addresses.get(0);
         }
 
         NetworkAddress selected = (NetworkAddress) JOptionPane.showInputDialog(frame,
@@ -401,7 +402,7 @@ public final class SquaresApp {
                 addresses.toArray(),
                 addresses.get(0));
 
-        return selected == null ? addresses.get(0) : selected;
+        return selected;
     }
 
     private static List<NetworkAddress> localIpAddresses() {
@@ -413,7 +414,8 @@ public final class SquaresApp {
             while (interfaces.hasMoreElements()) {
                 NetworkInterface networkInterface = interfaces.nextElement();
 
-                if (!networkInterface.isUp() || networkInterface.isLoopback()) {
+                if (!networkInterface.isUp() || networkInterface.isLoopback()
+                        || isVirtualLikeNetworkInterface(networkInterface)) {
                     continue;
                 }
 
@@ -426,19 +428,35 @@ public final class SquaresApp {
                     if (!address.isLoopbackAddress() && value.indexOf(':') < 0) {
                         String label = networkInterface.getDisplayName();
 
-                        if (networkInterface.isVirtual()) {
-                            label += Messages.VIRTUAL_ADAPTER_SUFFIX;
-                        }
-
                         addresses.add(new NetworkAddress(value, label));
                     }
                 }
             }
         } catch (SocketException exception) {
-            addresses.add(new NetworkAddress("127.0.0.1", "localhost"));
+            return addresses;
         }
 
         return addresses;
+    }
+
+    private static boolean isVirtualLikeNetworkInterface(NetworkInterface networkInterface) throws SocketException {
+        if (networkInterface.isVirtual()) {
+            return true;
+        }
+
+        String name = (networkInterface.getName() + " " + networkInterface.getDisplayName()).toLowerCase();
+        return name.contains("virtual")
+                || name.contains("vmware")
+                || name.contains("virtualbox")
+                || name.contains("hyper-v")
+                || name.contains("vbox")
+                || name.contains("vmnet")
+                || name.contains("wsl")
+                || name.contains("docker")
+                || name.contains("tap")
+                || name.contains("tun")
+                || name.contains("vpn")
+                || name.contains("loopback");
     }
 
     private static boolean isBlank(String value) {

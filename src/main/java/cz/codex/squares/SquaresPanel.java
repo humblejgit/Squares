@@ -22,7 +22,7 @@ final class SquaresPanel extends JPanel {
     private static final int CELL_SIZE = 48;
     private static final int PADDING = 24;
     private static final int STATUS_HEIGHT = 66;
-    private static final int INFO_HEIGHT = 28;
+    private static final int INFO_HEIGHT = 72;
     private static final int SCORE_BOX_WIDTH = 80;
     private static final int SCORE_BOX_HEIGHT = 34;
     private static final int RESTART_BUTTON_WIDTH = 76;
@@ -201,10 +201,17 @@ final class SquaresPanel extends JPanel {
         g2.setColor(INFO_TEXT);
         g2.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
 
-        FontMetrics metrics = g2.getFontMetrics();
+        String[] lines = networkInfo.split("\\n");
         int textX = PADDING;
-        int textY = gridTop() + rows * CELL_SIZE + ((INFO_HEIGHT - metrics.getHeight()) / 2) + metrics.getAscent();
-        g2.drawString(networkInfo, textX, textY);
+        FontMetrics metrics = g2.getFontMetrics();
+        int blockHeight = lines.length * metrics.getHeight();
+        int infoTop = gridTop() + rows * CELL_SIZE;
+        int textY = infoTop + ((INFO_HEIGHT - blockHeight) / 2) + metrics.getAscent();
+
+        for (String line : lines) {
+            g2.drawString(line, textX, textY);
+            textY += metrics.getHeight();
+        }
     }
 
     private void drawCells(Graphics2D g2) {
@@ -260,6 +267,10 @@ final class SquaresPanel extends JPanel {
 
     private void drawGhostEdge(Graphics2D g2) {
         if (hoveredEdge == null || isSelected(hoveredEdge)) {
+            return;
+        }
+
+        if (localPlayer != NO_PLAYER && currentPlayer != localPlayer) {
             return;
         }
 
@@ -360,6 +371,11 @@ final class SquaresPanel extends JPanel {
 
     void setClockEnabled(boolean clockEnabled) {
         this.clockEnabled = clockEnabled;
+    }
+
+    void resetClock() {
+        initializeTimes();
+        repaint();
     }
 
     void setClockPausedByDialog(boolean clockPausedByDialog) {
