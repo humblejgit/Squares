@@ -30,6 +30,11 @@ final class Messages {
     static final String ADAPTER_PROMPT = "Vyber s\u00ed\u0165ov\u00fd adapt\u00e9r pro IP adresu serveru:";
     static final String ADAPTER_TITLE = "Squares - adapt\u00e9r";
     static final String NO_NETWORK_ADAPTER = "Nebyl nalezen \u017e\u00e1dn\u00fd vhodn\u00fd s\u00ed\u0165ov\u00fd adapt\u00e9r.\n\nHostitelskou hru nelze spustit.";
+    static final String NETWORK_SETTINGS_ADAPTER = "S\u00ed\u0165ov\u00fd adapt\u00e9r:";
+    static final String NETWORK_SETTINGS_PORT = "Port:";
+    static final String NETWORK_SETTINGS_ACTIVE_CLIENT = "S\u00ed\u0165ov\u00fd adapt\u00e9r a port nelze m\u011bnit po p\u0159ipojen\u00ed klienta.";
+    static final String INVALID_PORT = "Port mus\u00ed b\u00fdt \u010d\u00edslo od 1 do 65535.";
+    static final String CURRENT_NETWORK_ADDRESS = "aktu\u00e1ln\u00ed adresa";
     static final String MENU_GAME = "Hra";
     static final String MENU_SETTINGS = "Nastaven\u00ed";
     static final String MENU_SOUNDS = "Zvuky";

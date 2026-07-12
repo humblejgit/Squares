@@ -19,7 +19,7 @@ final class NetworkGame {
     }
 
     static HostController host(JFrame frame, SquaresPanel panel, String hostAddress, int port) {
-        HostController controller = new HostController(panel, hostAddress, port);
+        HostController controller = new HostController(frame, panel, hostAddress, port);
         panel.setLocalPlayer(SquaresPanel.RED_PLAYER);
         panel.setClockEnabled(false);
         controller.refreshNetworkInfo();
@@ -29,9 +29,7 @@ final class NetworkGame {
                 JOptionPane.showMessageDialog(panel, Messages.RESTART_WAITING_FOR_CLIENT,
                         Messages.RESTART_TITLE, JOptionPane.INFORMATION_MESSAGE));
 
-        Thread serverThread = new Thread(() -> runServer(frame, panel, port, controller), "squares-server");
-        serverThread.setDaemon(true);
-        serverThread.start();
+        controller.startListening();
         return controller;
     }
 
@@ -41,57 +39,74 @@ final class NetworkGame {
         clientThread.start();
     }
 
-    private static void runServer(JFrame frame, SquaresPanel panel, int port, HostController controller) {
-        try (ServerSocket serverSocket = new ServerSocket(port);
-             Socket socket = serverSocket.accept();
-             BufferedReader input = reader(socket);
-             PrintWriter output = writer(socket)) {
-            boolean[] hostReadyForNewGame = {false};
-            boolean[] clientReadyForNewGame = {false};
-            controller.setOutput(output);
+    private static void runServer(JFrame frame, SquaresPanel panel, HostController controller) {
+        ServerSocket serverSocket = null;
 
-            if (!verifyClientBuild(panel, input, output)) {
-                return;
-            }
+        try {
+            serverSocket = new ServerSocket(controller.port());
+            controller.setServerSocket(serverSocket);
 
-            output.println("SIZE " + panel.boardRows() + " " + panel.boardColumns());
-            ChatPanel chat = createChatPanel(frame, panel, Messages.CHAT_HOST_TITLE, output);
-            String clientAddress = socket.getInetAddress().getHostAddress();
-            controller.setClientAddress(clientAddress);
-            panel.resetClock();
-            panel.setClockEnabled(true);
-            panel.setGameOverHandler(message ->
-                    askHostForNewGame(panel, output, hostReadyForNewGame, clientReadyForNewGame, message));
-            panel.setRestartHandler(() -> askHostForRestart(panel, output));
-            panel.setClockTickHandler(() -> sendState(panel, output));
-            panel.setMoveHandler((horizontal, rowOrLine, columnOrLine) -> {
-                if (panel.applyMove(horizontal, rowOrLine, columnOrLine)) {
-                    sendState(panel, output);
+            try (Socket socket = serverSocket.accept();
+                 BufferedReader input = reader(socket);
+                 PrintWriter output = writer(socket)) {
+                boolean[] hostReadyForNewGame = {false};
+                boolean[] clientReadyForNewGame = {false};
+                controller.setOutput(output);
+
+                if (!verifyClientBuild(panel, input, output)) {
+                    return;
                 }
-            });
-            sendState(panel, output);
 
-            String line;
-            while ((line = input.readLine()) != null) {
-                if (line.startsWith("MOVE ")) {
-                    applyRemoteMove(panel, output, line);
-                } else if ("GAME_OVER_ACK".equals(line)) {
-                    clientReadyForNewGame[0] = true;
-                    startNewGameIfBothConfirmed(panel, output, hostReadyForNewGame, clientReadyForNewGame);
-                } else if ("RESTART_REQUEST".equals(line)) {
-                    askHostForClientRestart(panel, output, controller);
-                } else if ("RESTART_ACCEPT".equals(line)) {
-                    restartNetworkGame(panel, output);
-                } else if ("RESTART_DECLINE".equals(line)) {
-                    showMessage(panel, Messages.RESTART_DECLINED_BY_CLIENT, Messages.RESTART_TITLE);
-                } else if (line.startsWith("CHAT ")) {
-                    receiveChatMessage(chat, Messages.CHAT_CLIENT, line);
+                output.println("SIZE " + panel.boardRows() + " " + panel.boardColumns());
+                ChatPanel chat = createChatPanel(frame, panel, Messages.CHAT_HOST_TITLE, output);
+                String clientAddress = socket.getInetAddress().getHostAddress();
+                controller.setClientAddress(clientAddress);
+                panel.resetClock();
+                panel.setClockEnabled(true);
+                panel.setGameOverHandler(message ->
+                        askHostForNewGame(panel, output, hostReadyForNewGame, clientReadyForNewGame, message));
+                panel.setRestartHandler(() -> askHostForRestart(panel, output));
+                panel.setClockTickHandler(() -> sendState(panel, output));
+                panel.setMoveHandler((horizontal, rowOrLine, columnOrLine) -> {
+                    if (panel.applyMove(horizontal, rowOrLine, columnOrLine)) {
+                        sendState(panel, output);
+                    }
+                });
+                sendState(panel, output);
+
+                String line;
+                while ((line = input.readLine()) != null) {
+                    if (line.startsWith("MOVE ")) {
+                        applyRemoteMove(panel, output, line);
+                    } else if ("GAME_OVER_ACK".equals(line)) {
+                        clientReadyForNewGame[0] = true;
+                        startNewGameIfBothConfirmed(panel, output, hostReadyForNewGame, clientReadyForNewGame);
+                    } else if ("RESTART_REQUEST".equals(line)) {
+                        askHostForClientRestart(panel, output, controller);
+                    } else if ("RESTART_ACCEPT".equals(line)) {
+                        restartNetworkGame(panel, output);
+                    } else if ("RESTART_DECLINE".equals(line)) {
+                        showMessage(panel, Messages.RESTART_DECLINED_BY_CLIENT, Messages.RESTART_TITLE);
+                    } else if (line.startsWith("CHAT ")) {
+                        receiveChatMessage(chat, Messages.CHAT_CLIENT, line);
+                    }
                 }
             }
         } catch (IOException exception) {
-            showNetworkError(Messages.NETWORK_HOST_ENDED, exception);
+            if (!controller.consumeExpectedServerClose()) {
+                showNetworkError(Messages.NETWORK_HOST_ENDED, exception);
+            }
         } finally {
             controller.setOutput(null);
+            controller.clearServerSocket(serverSocket);
+
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                try {
+                    serverSocket.close();
+                } catch (IOException exception) {
+                    // Server is already ending; there is nothing useful to report here.
+                }
+            }
         }
     }
 
@@ -419,17 +434,49 @@ final class NetworkGame {
     }
 
     static final class HostController {
+        private final JFrame frame;
         private final SquaresPanel panel;
-        private final String hostAddress;
-        private final int port;
+        private String hostAddress;
+        private int port;
+        private volatile ServerSocket serverSocket;
         private volatile PrintWriter output;
         private volatile String clientAddress;
         private volatile boolean settingsDialogOpen;
+        private volatile boolean expectedServerClose;
 
-        private HostController(SquaresPanel panel, String hostAddress, int port) {
+        private HostController(JFrame frame, SquaresPanel panel, String hostAddress, int port) {
+            this.frame = frame;
             this.panel = panel;
             this.hostAddress = hostAddress;
             this.port = port;
+        }
+
+        void startListening() {
+            Thread serverThread = new Thread(() -> runServer(frame, panel, this), "squares-server");
+            serverThread.setDaemon(true);
+            serverThread.start();
+        }
+
+        boolean changeNetworkEndpoint(String hostAddress, int port) {
+            if (!canChangeNetworkEndpoint()) {
+                return false;
+            }
+
+            boolean portChanged = this.port != port;
+            this.hostAddress = hostAddress;
+            this.port = port;
+            refreshNetworkInfo();
+
+            if (portChanged) {
+                closeListeningSocket();
+                startListening();
+            }
+
+            return true;
+        }
+
+        boolean canChangeNetworkEndpoint() {
+            return output == null && clientAddress == null;
         }
 
         void changeSettings(int rows, int columns, int thinkingTimeLimitSeconds, boolean randomInitialEdgesEnabled) {
@@ -471,6 +518,14 @@ final class NetworkGame {
             return panel.randomInitialEdgesEnabled();
         }
 
+        String hostAddress() {
+            return hostAddress;
+        }
+
+        int port() {
+            return port;
+        }
+
         void setSettingsDialogOpen(boolean settingsDialogOpen) {
             this.settingsDialogOpen = settingsDialogOpen;
         }
@@ -481,6 +536,38 @@ final class NetworkGame {
 
         private void setOutput(PrintWriter output) {
             this.output = output;
+        }
+
+        private void setServerSocket(ServerSocket serverSocket) {
+            this.serverSocket = serverSocket;
+        }
+
+        private void clearServerSocket(ServerSocket serverSocket) {
+            if (this.serverSocket == serverSocket) {
+                this.serverSocket = null;
+            }
+        }
+
+        private boolean consumeExpectedServerClose() {
+            if (!expectedServerClose) {
+                return false;
+            }
+
+            expectedServerClose = false;
+            return true;
+        }
+
+        private void closeListeningSocket() {
+            ServerSocket socket = serverSocket;
+            expectedServerClose = true;
+
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (IOException exception) {
+                    expectedServerClose = false;
+                }
+            }
         }
 
         private void setClientAddress(String clientAddress) {

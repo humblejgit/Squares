@@ -12,6 +12,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.JTextField;
 import javax.swing.UIManager;
 import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
@@ -255,14 +256,13 @@ public final class SquaresApp {
         hostController.setSettingsDialogOpen(true);
 
         try {
-            GameOptions gameOptions = askGameOptions(frame, hostController.boardSize(),
-                    hostController.thinkingTimeLimitSeconds(), hostController.randomInitialEdgesEnabled());
+            HostSettings hostSettings = askHostSettings(frame, hostController);
 
-            if (gameOptions == null) {
+            if (hostSettings == null) {
                 return;
             }
 
-            int boardSize = gameOptions.boardSize();
+            int boardSize = hostSettings.gameOptions().boardSize();
             int choice = JOptionPane.showConfirmDialog(frame,
                     Messages.settingsRestartConfirm(),
                     Messages.CHANGE_SIZE_TITLE,
@@ -270,12 +270,129 @@ public final class SquaresApp {
                     JOptionPane.QUESTION_MESSAGE);
 
             if (choice == JOptionPane.YES_OPTION) {
-                hostController.changeSettings(boardSize, boardSize, gameOptions.thinkingTimeSeconds(),
-                        gameOptions.randomEdges());
+                if (hostSettings.networkChanged(hostController.hostAddress(), hostController.port())
+                        && !hostController.changeNetworkEndpoint(hostSettings.hostAddress(), hostSettings.port())) {
+                    JOptionPane.showMessageDialog(frame,
+                            Messages.NETWORK_SETTINGS_ACTIVE_CLIENT,
+                            Messages.NETWORK_GAME_TITLE,
+                            JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }
+
+                hostController.changeSettings(boardSize, boardSize, hostSettings.gameOptions().thinkingTimeSeconds(),
+                        hostSettings.gameOptions().randomEdges());
                 fitWindowToContent(frame);
             }
         } finally {
             hostController.setSettingsDialogOpen(false);
+        }
+    }
+
+    private static HostSettings askHostSettings(JFrame frame, NetworkGame.HostController hostController) {
+        String[] sizes = {"5x5", "6x6", "7x7", "8x8", "9x9", "10x10"};
+        String[] thinkTimes = {
+                Messages.THINK_TIME_NONE,
+                "30 s",
+                "1 min",
+                "2 min",
+                "5 min"
+        };
+        JComboBox<String> sizeBox = new JComboBox<>(sizes);
+        JComboBox<String> thinkTimeBox = new JComboBox<>(thinkTimes);
+        JCheckBox randomEdgesBox = new JCheckBox(Messages.GAME_OPTIONS_RANDOM_EDGES);
+        List<NetworkAddress> addresses = localIpAddresses(true);
+        if (!hasAddress(addresses, hostController.hostAddress())) {
+            addresses.add(0, new NetworkAddress(hostController.hostAddress(), Messages.CURRENT_NETWORK_ADDRESS));
+        }
+        JComboBox<NetworkAddress> adapterBox = new JComboBox<>(addresses.toArray(new NetworkAddress[0]));
+        JTextField portField = new JTextField(String.valueOf(hostController.port()), 8);
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints constraints = new GridBagConstraints();
+
+        sizeBox.setSelectedItem(hostController.boardSize() + "x" + hostController.boardSize());
+        thinkTimeBox.setSelectedIndex(thinkTimeIndex(hostController.thinkingTimeLimitSeconds()));
+        randomEdgesBox.setSelected(hostController.randomInitialEdgesEnabled());
+        selectAddress(adapterBox, hostController.hostAddress());
+        adapterBox.setEnabled(hostController.canChangeNetworkEndpoint());
+        portField.setEnabled(hostController.canChangeNetworkEndpoint());
+
+        constraints.insets = new Insets(4, 4, 4, 4);
+        constraints.anchor = GridBagConstraints.WEST;
+        constraints.gridx = 0;
+        constraints.gridy = 0;
+        panel.add(new JLabel(Messages.GAME_OPTIONS_BOARD_SIZE), constraints);
+
+        constraints.gridx = 1;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(sizeBox, constraints);
+
+        constraints.gridx = 0;
+        constraints.gridy = 1;
+        constraints.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel(Messages.GAME_OPTIONS_THINK_TIME), constraints);
+
+        constraints.gridx = 1;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(thinkTimeBox, constraints);
+
+        constraints.gridx = 0;
+        constraints.gridy = 2;
+        constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.NONE;
+        panel.add(randomEdgesBox, constraints);
+
+        constraints.gridx = 0;
+        constraints.gridy = 3;
+        constraints.gridwidth = 1;
+        panel.add(new JLabel(Messages.NETWORK_SETTINGS_ADAPTER), constraints);
+
+        constraints.gridx = 1;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(adapterBox, constraints);
+
+        constraints.gridx = 0;
+        constraints.gridy = 4;
+        constraints.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel(Messages.NETWORK_SETTINGS_PORT), constraints);
+
+        constraints.gridx = 1;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(portField, constraints);
+
+        while (true) {
+            int choice = JOptionPane.showConfirmDialog(frame,
+                    panel,
+                    Messages.GAME_OPTIONS_TITLE,
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.PLAIN_MESSAGE);
+
+            if (choice != JOptionPane.OK_OPTION) {
+                return null;
+            }
+
+            Integer port = parsePort(portField.getText());
+            if (port == null) {
+                JOptionPane.showMessageDialog(frame,
+                        Messages.INVALID_PORT,
+                        Messages.NETWORK_GAME_TITLE,
+                        JOptionPane.WARNING_MESSAGE);
+                continue;
+            }
+
+            NetworkAddress selectedAddress = (NetworkAddress) adapterBox.getSelectedItem();
+            if (selectedAddress == null) {
+                JOptionPane.showMessageDialog(frame,
+                        Messages.NO_NETWORK_ADAPTER,
+                        Messages.ADAPTER_TITLE,
+                        JOptionPane.WARNING_MESSAGE);
+                continue;
+            }
+
+            String selectedSize = (String) sizeBox.getSelectedItem();
+            int boardSize = selectedSize == null ? 5 : Integer.parseInt(selectedSize.substring(0, selectedSize.indexOf('x')));
+            GameOptions gameOptions = new GameOptions(boardSize, thinkingTimeSeconds(thinkTimeBox.getSelectedIndex()),
+                    randomEdgesBox.isSelected());
+            return new HostSettings(gameOptions, selectedAddress.address(), port);
         }
     }
 
@@ -384,7 +501,7 @@ public final class SquaresApp {
     }
 
     private static NetworkAddress askNetworkAddress(JFrame frame) {
-        List<NetworkAddress> addresses = localIpAddresses();
+        List<NetworkAddress> addresses = localIpAddresses(false);
 
         if (addresses.isEmpty()) {
             return null;
@@ -405,7 +522,7 @@ public final class SquaresApp {
         return selected;
     }
 
-    private static List<NetworkAddress> localIpAddresses() {
+    private static List<NetworkAddress> localIpAddresses(boolean includeVirtual) {
         List<NetworkAddress> addresses = new ArrayList<>();
 
         try {
@@ -415,7 +532,7 @@ public final class SquaresApp {
                 NetworkInterface networkInterface = interfaces.nextElement();
 
                 if (!networkInterface.isUp() || networkInterface.isLoopback()
-                        || isVirtualLikeNetworkInterface(networkInterface)) {
+                        || (!includeVirtual && isVirtualLikeNetworkInterface(networkInterface))) {
                     continue;
                 }
 
@@ -437,6 +554,35 @@ public final class SquaresApp {
         }
 
         return addresses;
+    }
+
+    private static void selectAddress(JComboBox<NetworkAddress> adapterBox, String address) {
+        for (int index = 0; index < adapterBox.getItemCount(); index++) {
+            NetworkAddress item = adapterBox.getItemAt(index);
+            if (item.address().equals(address)) {
+                adapterBox.setSelectedIndex(index);
+                return;
+            }
+        }
+    }
+
+    private static boolean hasAddress(List<NetworkAddress> addresses, String address) {
+        for (NetworkAddress item : addresses) {
+            if (item.address().equals(address)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Integer parsePort(String value) {
+        try {
+            int port = Integer.parseInt(value.trim());
+            return port >= 1 && port <= 65535 ? port : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private static boolean isVirtualLikeNetworkInterface(NetworkInterface networkInterface) throws SocketException {
@@ -475,6 +621,34 @@ public final class SquaresApp {
         }
 
         return 0;
+    }
+
+    private static final class HostSettings {
+        private final GameOptions gameOptions;
+        private final String hostAddress;
+        private final int port;
+
+        private HostSettings(GameOptions gameOptions, String hostAddress, int port) {
+            this.gameOptions = gameOptions;
+            this.hostAddress = hostAddress;
+            this.port = port;
+        }
+
+        private GameOptions gameOptions() {
+            return gameOptions;
+        }
+
+        private String hostAddress() {
+            return hostAddress;
+        }
+
+        private int port() {
+            return port;
+        }
+
+        private boolean networkChanged(String currentHostAddress, int currentPort) {
+            return !hostAddress.equals(currentHostAddress) || port != currentPort;
+        }
     }
 
     private static final class NetworkAddress {

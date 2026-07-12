@@ -7,7 +7,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 final class BuildInfo {
-    private static final String BUILD_ID = "2.1.0";
+    private static final String BUILD_ID = "2.2.0";
     private static final String BUILD_TIME = resolveBuildTime();
 
     private BuildInfo() {

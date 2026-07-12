@@ -1,4 +1,12 @@
-# Changelog
+﻿# Changelog
+
+## 2.2 - 2026-07-12
+
+- V nastaveni sitove hry lze zmenit sitovy adapter a port; start hostitele zustava jednoduchy s automatickym nevirtualnim adapterem a portem 1080.
+- Pridana distribuce uzivatelum pres GitHub Releases.
+- Pridan uzivatelsky `start.bat` a interni `squares-launcher.ps1`, ktery overi posledni release, stahne aktualni `squares.jar` a spusti hru.
+- Launcher porovnava verzi i SHA-256 digest GitHub assetu, takze zachyti i prepsany JAR ve stejnem releasu.
+- Pridan `publish-github-release.ps1` pro sestaveni JAR a vytvoreni nebo aktualizaci GitHub releasu.
 
 ## 2.1 - 2026-07-11
 

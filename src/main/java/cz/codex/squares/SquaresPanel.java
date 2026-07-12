@@ -803,9 +803,7 @@ final class SquaresPanel extends JPanel {
         }
 
         hoveredEdge = edge;
-        setCursor(edge == null || isSelected(edge)
-                ? Cursor.getDefaultCursor()
-                : Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        setCursor(Cursor.getDefaultCursor());
         repaint();
     }
 
