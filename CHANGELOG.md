@@ -1,5 +1,14 @@
 ﻿# Changelog
 
+## 3.0 - 2026-07-13
+
+- Pridan novy rezim hry clovek vs. CPU na jednom PC.
+- CPU hraje za modreho hrace a pouziva heuristiku nad dostupnymi tahy: bere body, vyhyba se zbytecnemu darovani ctvercu a podle obtiznosti pridava miru nahody.
+- Pridany tri urovne obtiznosti CPU: lehka, stredni a tezka.
+- Obtiznost CPU je rizena jednim parametrem `skill`, ktery ovlivnuje pravdepodobnost nejlepsiho tahu, tresty za rizikove tahy a miru nahody.
+- Uvodni dialog vyberu rezimu byl zprehlednen do svislych tlacitek: clovek vs. CPU, clovek vs. clovek, sitova hra - server a sitova hra - klient.
+- Odstraneno zbytecne tlacitko OK z uvodniho dialogu vyberu rezimu.
+
 ## 2.2 - 2026-07-12
 
 - V nastaveni sitove hry lze zmenit sitovy adapter a port; start hostitele zustava jednoduchy s automatickym nevirtualnim adapterem a portem 1080.
@@ -45,3 +54,5 @@
 - Volitelna velikost hraci plochy 5x5 az 10x10.
 - Skore, cas hry a cas premysleni kazdeho hrace.
 - Restart hry, zmena velikosti pole a volitelne zvuky.
+
+

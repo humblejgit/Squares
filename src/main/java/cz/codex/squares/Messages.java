@@ -5,10 +5,12 @@ final class Messages {
     static final String WINDOW_HOST = "Squares - hostitel (\u010derven\u00fd)";
     static final String WINDOW_CLIENT = "Squares - klient (modr\u00fd)";
     static final String WINDOW_LOCAL = "Squares - lok\u00e1ln\u00ed hra";
+    static final String WINDOW_COMPUTER = "Squares - proti po\u010d\u00edta\u010di";
 
-    static final String GAME_MODE_LOCAL = "Na jednom PC";
-    static final String GAME_MODE_HOST = "Hostitel";
-    static final String GAME_MODE_JOIN = "P\u0159ipojit";
+    static final String GAME_MODE_LOCAL = "\u010clov\u011bk vs. \u010dlov\u011bk";
+    static final String GAME_MODE_COMPUTER = "\u010clov\u011bk vs. CPU";
+    static final String GAME_MODE_HOST = "S\u00ed\u0165ov\u00e1 hra - server";
+    static final String GAME_MODE_JOIN = "S\u00ed\u0165ov\u00e1 hra - klient";
     static final String GAME_MODE_PROMPT = "Vyber re\u017eim hry.";
 
     static final String HOST_ADDRESS_PROMPT = "IP adresa hostitele:";
@@ -23,8 +25,12 @@ final class Messages {
     static final String GAME_OPTIONS_TITLE = "Squares - nastaven\u00ed hry";
     static final String GAME_OPTIONS_BOARD_SIZE = "Velikost pole:";
     static final String GAME_OPTIONS_THINK_TIME = "Max. \u010das na p\u0159em\u00fd\u0161len\u00ed:";
+    static final String GAME_OPTIONS_DIFFICULTY = "Obt\u00ed\u017enost po\u010d\u00edta\u010de:";
     static final String GAME_OPTIONS_RANDOM_EDGES = "N\u00e1hodn\u00e9 vygenerov\u00e1n\u00ed hran";
     static final String THINK_TIME_NONE = "Bez limitu";
+    static final String DIFFICULTY_EASY = "Lehk\u00e1";
+    static final String DIFFICULTY_MEDIUM = "St\u0159edn\u00ed";
+    static final String DIFFICULTY_HARD = "T\u011b\u017ek\u00e1";
     static final String BOARD_SIZE_PROMPT = "Vyber velikost hrac\u00ed plochy:";
     static final String BOARD_SIZE_TITLE = "Squares - velikost";
     static final String ADAPTER_PROMPT = "Vyber s\u00ed\u0165ov\u00fd adapt\u00e9r pro IP adresu serveru:";
@@ -91,6 +97,12 @@ final class Messages {
         return "IP: lok\u00e1ln\u00ed hra\n"
                 + "Plocha: " + boardSize(rows, columns) + "\n"
                 + "Status: oba hr\u00e1\u010di na tomto PC";
+    }
+
+    static String computerInfo(int rows, int columns, String difficulty) {
+        return "IP: lok\u00e1ln\u00ed hra\n"
+                + "Plocha: " + boardSize(rows, columns) + "\n"
+                + "Status: \u010derven\u00fd hr\u00e1\u010d vs. po\u010d\u00edta\u010d (" + difficulty + ")";
     }
 
     static String waitingForClient() {

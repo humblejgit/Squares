@@ -3,7 +3,9 @@ package cz.codex.squares;
 import javax.swing.JFrame;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JCheckBox;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -14,7 +16,9 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.JTextField;
 import javax.swing.UIManager;
+import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
+import java.awt.GridLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -51,12 +55,17 @@ public final class SquaresApp {
     private static void showWindow() {
         int gameMode = askGameMode();
 
-        if (gameMode == 2) {
+        if (gameMode < 0) {
+            return;
+        }
+
+        if (gameMode == 3) {
             showClientWindow();
             return;
         }
 
-        GameOptions gameOptions = askGameOptions(null, 8, 0, false);
+        GameOptions gameOptions = askGameOptions(null, 8, 0, false,
+                gameMode == 1, SquaresPanel.ComputerDifficulty.MEDIUM);
 
         if (gameOptions == null) {
             return;
@@ -67,6 +76,9 @@ public final class SquaresApp {
         SquaresPanel panel = new SquaresPanel(boardSize, boardSize);
         panel.setThinkingTimeLimitSeconds(gameOptions.thinkingTimeSeconds());
         panel.setRandomInitialEdgesEnabled(gameOptions.randomEdges());
+        if (gameMode == 1) {
+            panel.setComputerOpponent(gameOptions.computerDifficulty());
+        }
         panel.resetGame();
 
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -100,15 +112,40 @@ public final class SquaresApp {
     }
 
     private static int askGameMode() {
-        String[] options = {Messages.GAME_MODE_LOCAL, Messages.GAME_MODE_HOST, Messages.GAME_MODE_JOIN};
-        int choice = JOptionPane.showOptionDialog(null, Messages.GAME_MODE_PROMPT, Messages.APP_TITLE,
-                JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
+        JPanel panel = new JPanel(new BorderLayout(0, 10));
+        JPanel buttons = new JPanel(new GridLayout(0, 1, 0, 8));
+        JDialog dialog = new JDialog((JFrame) null, Messages.APP_TITLE, true);
+        int[] selectedMode = {-1};
 
-        return choice < 0 ? 0 : choice;
+        panel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        panel.add(new JLabel(Messages.GAME_MODE_PROMPT), BorderLayout.NORTH);
+        addGameModeButton(buttons, dialog, selectedMode, Messages.GAME_MODE_COMPUTER, 1);
+        addGameModeButton(buttons, dialog, selectedMode, Messages.GAME_MODE_LOCAL, 0);
+        addGameModeButton(buttons, dialog, selectedMode, Messages.GAME_MODE_HOST, 2);
+        addGameModeButton(buttons, dialog, selectedMode, Messages.GAME_MODE_JOIN, 3);
+        panel.add(buttons, BorderLayout.CENTER);
+
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setContentPane(panel);
+        dialog.pack();
+        dialog.setLocationRelativeTo(null);
+        dialog.setVisible(true);
+        return selectedMode[0];
+    }
+
+    private static void addGameModeButton(JPanel panel, JDialog dialog, int[] selectedMode, String label, int mode) {
+        JButton button = new JButton(label);
+
+        button.setFocusable(false);
+        button.addActionListener(event -> {
+            selectedMode[0] = mode;
+            dialog.dispose();
+        });
+        panel.add(button);
     }
 
     private static boolean configureGameMode(JFrame frame, SquaresPanel panel, int boardSize, int gameMode) {
-        if (gameMode == 1) {
+        if (gameMode == 2) {
             panel.setClockEnabled(false);
             panel.resetClock();
             NetworkAddress networkAddress = askNetworkAddress(frame);
@@ -125,13 +162,20 @@ public final class SquaresApp {
             installGameMenu(frame, panel, false, () -> askHostForSettingsChange(frame, hostController));
             return true;
         } else {
-            panel.setLocalPlayer(SquaresPanel.NO_PLAYER);
-            panel.setNetworkInfo(Messages.localInfo(boardSize, boardSize));
+            if (gameMode == 1) {
+                panel.setComputerOpponent(panel.computerDifficulty());
+                panel.setNetworkInfo(Messages.computerInfo(boardSize, boardSize,
+                        panel.computerDifficulty().toString()));
+            } else {
+                panel.clearComputerOpponent();
+                panel.setLocalPlayer(SquaresPanel.NO_PLAYER);
+                panel.setNetworkInfo(Messages.localInfo(boardSize, boardSize));
+            }
             panel.setGameOverHandler(message -> askForNewLocalGame(frame, panel, message));
             panel.setRestartHandler(() -> askForLocalRestart(frame, panel));
             installWindowPauseHandling(frame, panel);
-            installGameMenu(frame, panel, true, () -> askLocalForSettingsChange(frame, panel));
-            frame.setTitle(Messages.WINDOW_LOCAL);
+            installGameMenu(frame, panel, true, () -> askLocalForSettingsChange(frame, panel, gameMode == 1));
+            frame.setTitle(gameMode == 1 ? Messages.WINDOW_COMPUTER : Messages.WINDOW_LOCAL);
             return true;
         }
     }
@@ -166,7 +210,8 @@ public final class SquaresApp {
     }
 
     private static GameOptions askGameOptions(JFrame frame, int selectedBoardSize, int selectedThinkingTimeSeconds,
-                                              boolean selectedRandomEdges) {
+                                              boolean selectedRandomEdges, boolean showDifficulty,
+                                              SquaresPanel.ComputerDifficulty selectedDifficulty) {
         String[] sizes = {"5x5", "6x6", "7x7", "8x8", "9x9", "10x10"};
         String[] thinkTimes = {
                 Messages.THINK_TIME_NONE,
@@ -177,12 +222,17 @@ public final class SquaresApp {
         };
         JComboBox<String> sizeBox = new JComboBox<>(sizes);
         JComboBox<String> thinkTimeBox = new JComboBox<>(thinkTimes);
+        JComboBox<SquaresPanel.ComputerDifficulty> difficultyBox =
+                new JComboBox<>(SquaresPanel.ComputerDifficulty.values());
         JCheckBox randomEdgesBox = new JCheckBox(Messages.GAME_OPTIONS_RANDOM_EDGES);
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints constraints = new GridBagConstraints();
 
         sizeBox.setSelectedItem(selectedBoardSize + "x" + selectedBoardSize);
         thinkTimeBox.setSelectedIndex(thinkTimeIndex(selectedThinkingTimeSeconds));
+        difficultyBox.setSelectedItem(selectedDifficulty == null
+                ? SquaresPanel.ComputerDifficulty.MEDIUM
+                : selectedDifficulty);
         randomEdgesBox.setSelected(selectedRandomEdges);
 
         constraints.insets = new Insets(4, 4, 4, 4);
@@ -204,8 +254,22 @@ public final class SquaresApp {
         constraints.fill = GridBagConstraints.HORIZONTAL;
         panel.add(thinkTimeBox, constraints);
 
+        int row = 2;
+        if (showDifficulty) {
+            constraints.gridx = 0;
+            constraints.gridy = row;
+            constraints.gridwidth = 1;
+            constraints.fill = GridBagConstraints.NONE;
+            panel.add(new JLabel(Messages.GAME_OPTIONS_DIFFICULTY), constraints);
+
+            constraints.gridx = 1;
+            constraints.fill = GridBagConstraints.HORIZONTAL;
+            panel.add(difficultyBox, constraints);
+            row++;
+        }
+
         constraints.gridx = 0;
-        constraints.gridy = 2;
+        constraints.gridy = row;
         constraints.gridwidth = 2;
         constraints.fill = GridBagConstraints.NONE;
         panel.add(randomEdgesBox, constraints);
@@ -222,8 +286,11 @@ public final class SquaresApp {
 
         String selectedSize = (String) sizeBox.getSelectedItem();
         int boardSize = selectedSize == null ? 5 : Integer.parseInt(selectedSize.substring(0, selectedSize.indexOf('x')));
+        SquaresPanel.ComputerDifficulty difficulty =
+                (SquaresPanel.ComputerDifficulty) difficultyBox.getSelectedItem();
         return new GameOptions(boardSize, thinkingTimeSeconds(thinkTimeBox.getSelectedIndex()),
-                randomEdgesBox.isSelected());
+                randomEdgesBox.isSelected(),
+                difficulty == null ? SquaresPanel.ComputerDifficulty.MEDIUM : difficulty);
     }
 
     private static void installGameMenu(JFrame frame, SquaresPanel panel, boolean pauseClockForDialogs,
@@ -391,17 +458,17 @@ public final class SquaresApp {
             String selectedSize = (String) sizeBox.getSelectedItem();
             int boardSize = selectedSize == null ? 5 : Integer.parseInt(selectedSize.substring(0, selectedSize.indexOf('x')));
             GameOptions gameOptions = new GameOptions(boardSize, thinkingTimeSeconds(thinkTimeBox.getSelectedIndex()),
-                    randomEdgesBox.isSelected());
+                    randomEdgesBox.isSelected(), SquaresPanel.ComputerDifficulty.MEDIUM);
             return new HostSettings(gameOptions, selectedAddress.address(), port);
         }
     }
 
-    private static void askLocalForSettingsChange(JFrame frame, SquaresPanel panel) {
+    private static void askLocalForSettingsChange(JFrame frame, SquaresPanel panel, boolean computerOpponent) {
         panel.setClockPausedByDialog(true);
 
         try {
             GameOptions gameOptions = askGameOptions(frame, panel.boardRows(), panel.thinkingTimeLimitSeconds(),
-                    panel.randomInitialEdgesEnabled());
+                    panel.randomInitialEdgesEnabled(), computerOpponent, panel.computerDifficulty());
 
             if (gameOptions == null) {
                 return;
@@ -417,8 +484,13 @@ public final class SquaresApp {
             if (choice == JOptionPane.YES_OPTION) {
                 panel.setThinkingTimeLimitSeconds(gameOptions.thinkingTimeSeconds());
                 panel.setRandomInitialEdgesEnabled(gameOptions.randomEdges());
+                if (computerOpponent) {
+                    panel.setComputerOpponent(gameOptions.computerDifficulty());
+                }
                 panel.resizeBoard(boardSize, boardSize);
-                panel.setNetworkInfo(Messages.localInfo(boardSize, boardSize));
+                panel.setNetworkInfo(computerOpponent
+                        ? Messages.computerInfo(boardSize, boardSize, gameOptions.computerDifficulty().toString())
+                        : Messages.localInfo(boardSize, boardSize));
                 fitWindowToContent(frame);
             }
         } finally {
@@ -674,11 +746,14 @@ public final class SquaresApp {
         private final int boardSize;
         private final int thinkingTimeSeconds;
         private final boolean randomEdges;
+        private final SquaresPanel.ComputerDifficulty computerDifficulty;
 
-        private GameOptions(int boardSize, int thinkingTimeSeconds, boolean randomEdges) {
+        private GameOptions(int boardSize, int thinkingTimeSeconds, boolean randomEdges,
+                            SquaresPanel.ComputerDifficulty computerDifficulty) {
             this.boardSize = boardSize;
             this.thinkingTimeSeconds = thinkingTimeSeconds;
             this.randomEdges = randomEdges;
+            this.computerDifficulty = computerDifficulty;
         }
 
         private int boardSize() {
@@ -691,6 +766,10 @@ public final class SquaresApp {
 
         private boolean randomEdges() {
             return randomEdges;
+        }
+
+        private SquaresPanel.ComputerDifficulty computerDifficulty() {
+            return computerDifficulty;
         }
     }
 }

@@ -17,6 +17,7 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 final class SquaresPanel extends JPanel {
     private static final int CELL_SIZE = 48;
@@ -70,6 +71,10 @@ final class SquaresPanel extends JPanel {
     private boolean clockPausedByDialog;
     private boolean windowActive = true;
     private boolean randomInitialEdgesEnabled;
+    private int computerPlayer = NO_PLAYER;
+    private ComputerDifficulty computerDifficulty = ComputerDifficulty.MEDIUM;
+    private final Random random = new Random();
+    private Timer computerMoveTimer;
 
     SquaresPanel(int rows, int columns) {
         this.rows = rows;
@@ -341,6 +346,7 @@ final class SquaresPanel extends JPanel {
 
         repaint();
         checkGameOver();
+        scheduleComputerMoveIfNeeded();
         return true;
     }
 
@@ -362,6 +368,25 @@ final class SquaresPanel extends JPanel {
 
     void setLocalPlayer(int localPlayer) {
         this.localPlayer = localPlayer;
+    }
+
+    void setComputerOpponent(ComputerDifficulty difficulty) {
+        this.computerPlayer = BLUE_PLAYER;
+        this.computerDifficulty = difficulty == null ? ComputerDifficulty.MEDIUM : difficulty;
+        setLocalPlayer(RED_PLAYER);
+        scheduleComputerMoveIfNeeded();
+    }
+
+    void clearComputerOpponent() {
+        this.computerPlayer = NO_PLAYER;
+        stopComputerMoveTimer();
+        if (localPlayer == RED_PLAYER) {
+            setLocalPlayer(NO_PLAYER);
+        }
+    }
+
+    ComputerDifficulty computerDifficulty() {
+        return computerDifficulty;
     }
 
     void setNetworkInfo(String networkInfo) {
@@ -405,6 +430,7 @@ final class SquaresPanel extends JPanel {
     }
 
     void resetGame() {
+        stopComputerMoveTimer();
         clear(horizontalEdges);
         clear(verticalEdges);
         clear(completedCells);
@@ -416,9 +442,11 @@ final class SquaresPanel extends JPanel {
         generateRandomInitialEdges();
         repaint();
         SoundPlayer.gameStart();
+        scheduleComputerMoveIfNeeded();
     }
 
     void resizeBoard(int rows, int columns) {
+        stopComputerMoveTimer();
         this.rows = rows;
         this.columns = columns;
         this.horizontalEdges = new int[rows + 1][columns];
@@ -438,6 +466,7 @@ final class SquaresPanel extends JPanel {
         doLayout();
         repaint();
         SoundPlayer.gameStart();
+        scheduleComputerMoveIfNeeded();
     }
 
     int getCurrentPlayer() {
@@ -958,6 +987,196 @@ final class SquaresPanel extends JPanel {
 
     private int gridTop() {
         return PADDING + STATUS_HEIGHT;
+    }
+
+    private void scheduleComputerMoveIfNeeded() {
+        if (computerPlayer == NO_PLAYER || computerPlayer != currentPlayer || gameOverAnnounced || moveHandler != null) {
+            return;
+        }
+
+        stopComputerMoveTimer();
+        computerMoveTimer = new Timer(420, event -> makeComputerMove());
+        computerMoveTimer.setRepeats(false);
+        computerMoveTimer.start();
+    }
+
+    private void stopComputerMoveTimer() {
+        if (computerMoveTimer != null) {
+            computerMoveTimer.stop();
+            computerMoveTimer = null;
+        }
+    }
+
+    private void makeComputerMove() {
+        computerMoveTimer = null;
+
+        if (computerPlayer == NO_PLAYER || computerPlayer != currentPlayer || gameOverAnnounced) {
+            return;
+        }
+
+        EdgeHit move = chooseComputerMove();
+        if (move != null) {
+            applyMove(move.horizontal, move.rowOrLine, move.columnOrLine);
+        }
+    }
+
+    private EdgeHit chooseComputerMove() {
+        List<ScoredMove> moves = new ArrayList<>();
+        double skill = computerDifficulty.skill();
+
+        for (EdgeHit edge : legalMoves()) {
+            moves.add(new ScoredMove(edge, scoreComputerMove(edge, skill)));
+        }
+
+        if (moves.isEmpty()) {
+            return null;
+        }
+
+        Collections.sort(moves);
+
+        double bestMoveChance = 0.35 + skill * 0.60;
+        if (random.nextDouble() < bestMoveChance) {
+            return moves.get(0).edge;
+        }
+
+        int candidateCount = Math.max(1, Math.min(moves.size(), 6 - (int) Math.round(skill * 4.0)));
+        return moves.get(random.nextInt(candidateCount)).edge;
+    }
+
+    private double scoreComputerMove(EdgeHit edge, double skill) {
+        int captured = countCapturesIfAdded(edge);
+        int risk = countAlmostCompletedCellsIfAdded(edge);
+        double score = captured * 140.0;
+
+        if (captured == 0) {
+            score -= risk * (55.0 + skill * 135.0);
+            score -= strongestOpponentCaptureAfter(edge) * (15.0 + skill * 45.0);
+        } else {
+            score -= risk * (10.0 + skill * 20.0);
+        }
+
+        if (risk == 0) {
+            score += 12.0 + skill * 8.0;
+        }
+
+        score += random.nextDouble() * (42.0 * (1.0 - skill) + 4.0);
+        return score;
+    }
+
+    private List<EdgeHit> legalMoves() {
+        List<EdgeHit> moves = new ArrayList<>();
+
+        for (int row = 1; row < rows; row++) {
+            for (int column = 0; column < columns; column++) {
+                EdgeHit edge = new EdgeHit(true, row, column);
+                if (!isSelected(edge)) {
+                    moves.add(edge);
+                }
+            }
+        }
+
+        for (int row = 0; row < rows; row++) {
+            for (int column = 1; column < columns; column++) {
+                EdgeHit edge = new EdgeHit(false, row, column);
+                if (!isSelected(edge)) {
+                    moves.add(edge);
+                }
+            }
+        }
+
+        return moves;
+    }
+
+    private int strongestOpponentCaptureAfter(EdgeHit edge) {
+        int owner = currentPlayer;
+        setEdgeOwner(edge, owner);
+
+        try {
+            int strongest = 0;
+            for (EdgeHit candidate : legalMoves()) {
+                strongest = Math.max(strongest, countCapturesIfAdded(candidate));
+            }
+            return strongest;
+        } finally {
+            setEdgeOwner(edge, NO_PLAYER);
+        }
+    }
+
+    private int countCapturesIfAdded(EdgeHit edge) {
+        if (edge.horizontal) {
+            return capturesCellIfAdded(edge.rowOrLine - 1, edge.columnOrLine)
+                    + capturesCellIfAdded(edge.rowOrLine, edge.columnOrLine);
+        }
+
+        return capturesCellIfAdded(edge.rowOrLine, edge.columnOrLine - 1)
+                + capturesCellIfAdded(edge.rowOrLine, edge.columnOrLine);
+    }
+
+    private int capturesCellIfAdded(int row, int column) {
+        return row >= 0 && row < rows && column >= 0 && column < columns
+                && completedCells[row][column] == NO_PLAYER
+                && countCellEdges(row, column) == 3 ? 1 : 0;
+    }
+
+    private int countAlmostCompletedCellsIfAdded(EdgeHit edge) {
+        int owner = currentPlayer;
+        setEdgeOwner(edge, owner);
+
+        try {
+            if (edge.horizontal) {
+                return almostCompletedCell(edge.rowOrLine - 1, edge.columnOrLine)
+                        + almostCompletedCell(edge.rowOrLine, edge.columnOrLine);
+            }
+
+            return almostCompletedCell(edge.rowOrLine, edge.columnOrLine - 1)
+                    + almostCompletedCell(edge.rowOrLine, edge.columnOrLine);
+        } finally {
+            setEdgeOwner(edge, NO_PLAYER);
+        }
+    }
+
+    private int almostCompletedCell(int row, int column) {
+        return row >= 0 && row < rows && column >= 0 && column < columns
+                && completedCells[row][column] == NO_PLAYER
+                && countCellEdges(row, column) == 3 ? 1 : 0;
+    }
+
+    enum ComputerDifficulty {
+        EASY(Messages.DIFFICULTY_EASY, 0.22),
+        MEDIUM(Messages.DIFFICULTY_MEDIUM, 0.61),
+        HARD(Messages.DIFFICULTY_HARD, 0.94);
+
+        private final String label;
+        private final double skill;
+
+        ComputerDifficulty(String label, double skill) {
+            this.label = label;
+            this.skill = skill;
+        }
+
+        double skill() {
+            return skill;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    private static final class ScoredMove implements Comparable<ScoredMove> {
+        private final EdgeHit edge;
+        private final double score;
+
+        private ScoredMove(EdgeHit edge, double score) {
+            this.edge = edge;
+            this.score = score;
+        }
+
+        @Override
+        public int compareTo(ScoredMove other) {
+            return Double.compare(other.score, score);
+        }
     }
 
     private static final class EdgeHit {
