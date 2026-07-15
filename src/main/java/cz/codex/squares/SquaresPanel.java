@@ -2,6 +2,7 @@ package cz.codex.squares;
 
 import javax.swing.JButton;
 import javax.swing.JPanel;
+import javax.swing.SwingWorker;
 import javax.swing.Timer;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -18,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 
 final class SquaresPanel extends JPanel {
     private static final int CELL_SIZE = 48;
@@ -75,6 +78,8 @@ final class SquaresPanel extends JPanel {
     private ComputerDifficulty computerDifficulty = ComputerDifficulty.MEDIUM;
     private final Random random = new Random();
     private Timer computerMoveTimer;
+    private SwingWorker<ComputerStrategy.Decision, Void> computerMoveWorker;
+    private long computerMoveGeneration;
 
     SquaresPanel(int rows, int columns) {
         this.rows = rows;
@@ -686,6 +691,7 @@ final class SquaresPanel extends JPanel {
         }
 
         gameOverAnnounced = true;
+        stopComputerMoveTimer();
         SoundPlayer.gameOver();
 
         if (gameOverHandler != null) {
@@ -876,6 +882,7 @@ final class SquaresPanel extends JPanel {
         }
 
         gameOverAnnounced = true;
+        stopComputerMoveTimer();
         SoundPlayer.gameOver();
 
         if (gameOverHandler != null) {
@@ -995,150 +1002,87 @@ final class SquaresPanel extends JPanel {
         }
 
         stopComputerMoveTimer();
-        computerMoveTimer = new Timer(420, event -> makeComputerMove());
-        computerMoveTimer.setRepeats(false);
-        computerMoveTimer.start();
+        final long generation = computerMoveGeneration;
+        final long thinkingStarted = System.nanoTime();
+        final int boardRows = rows;
+        final int boardColumns = columns;
+        final int[][] horizontalSnapshot = copyEdges(horizontalEdges);
+        final int[][] verticalSnapshot = copyEdges(verticalEdges);
+        final double skill = computerDifficulty.skill();
+
+        computerMoveWorker = new SwingWorker<ComputerStrategy.Decision, Void>() {
+            @Override
+            protected ComputerStrategy.Decision doInBackground() {
+                return ComputerStrategy.chooseDecision(boardRows, boardColumns, horizontalSnapshot,
+                        verticalSnapshot, skill, random);
+            }
+
+            @Override
+            protected void done() {
+                if (computerMoveWorker == this) {
+                    computerMoveWorker = null;
+                }
+
+                if (isCancelled() || generation != computerMoveGeneration
+                        || computerPlayer == NO_PLAYER || computerPlayer != currentPlayer || gameOverAnnounced) {
+                    return;
+                }
+
+                try {
+                    ComputerStrategy.Decision decision = get();
+                    if (decision.move == null) {
+                        return;
+                    }
+
+                    long elapsedMillis = Math.max(0L, (System.nanoTime() - thinkingStarted) / 1_000_000L);
+                    int remainingDelay = (int) Math.max(0L, decision.thinkingDelayMillis - elapsedMillis);
+                    computerMoveTimer = new Timer(remainingDelay,
+                            event -> makeComputerMove(decision.move, generation));
+                    computerMoveTimer.setRepeats(false);
+                    computerMoveTimer.start();
+                } catch (CancellationException ignored) {
+                    // A restart, settings change or finished game invalidated this calculation.
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    exception.getCause().printStackTrace();
+                }
+            }
+        };
+        computerMoveWorker.execute();
     }
 
     private void stopComputerMoveTimer() {
+        computerMoveGeneration++;
+
         if (computerMoveTimer != null) {
             computerMoveTimer.stop();
             computerMoveTimer = null;
         }
+
+        if (computerMoveWorker != null) {
+            computerMoveWorker.cancel(true);
+            computerMoveWorker = null;
+        }
     }
 
-    private void makeComputerMove() {
+    private void makeComputerMove(ComputerStrategy.Move move, long generation) {
         computerMoveTimer = null;
 
-        if (computerPlayer == NO_PLAYER || computerPlayer != currentPlayer || gameOverAnnounced) {
+        if (generation != computerMoveGeneration || computerPlayer == NO_PLAYER
+                || computerPlayer != currentPlayer || gameOverAnnounced) {
             return;
         }
 
-        EdgeHit move = chooseComputerMove();
-        if (move != null) {
-            applyMove(move.horizontal, move.rowOrLine, move.columnOrLine);
-        }
+        applyMove(move.horizontal, move.rowOrLine, move.columnOrLine);
     }
 
-    private EdgeHit chooseComputerMove() {
-        List<ScoredMove> moves = new ArrayList<>();
-        double skill = computerDifficulty.skill();
-
-        for (EdgeHit edge : legalMoves()) {
-            moves.add(new ScoredMove(edge, scoreComputerMove(edge, skill)));
+    private int[][] copyEdges(int[][] source) {
+        int[][] copy = new int[source.length][];
+        for (int row = 0; row < source.length; row++) {
+            copy[row] = source[row].clone();
         }
-
-        if (moves.isEmpty()) {
-            return null;
-        }
-
-        Collections.sort(moves);
-
-        double bestMoveChance = 0.35 + skill * 0.60;
-        if (random.nextDouble() < bestMoveChance) {
-            return moves.get(0).edge;
-        }
-
-        int candidateCount = Math.max(1, Math.min(moves.size(), 6 - (int) Math.round(skill * 4.0)));
-        return moves.get(random.nextInt(candidateCount)).edge;
-    }
-
-    private double scoreComputerMove(EdgeHit edge, double skill) {
-        int captured = countCapturesIfAdded(edge);
-        int risk = countAlmostCompletedCellsIfAdded(edge);
-        double score = captured * 140.0;
-
-        if (captured == 0) {
-            score -= risk * (55.0 + skill * 135.0);
-            score -= strongestOpponentCaptureAfter(edge) * (15.0 + skill * 45.0);
-        } else {
-            score -= risk * (10.0 + skill * 20.0);
-        }
-
-        if (risk == 0) {
-            score += 12.0 + skill * 8.0;
-        }
-
-        score += random.nextDouble() * (42.0 * (1.0 - skill) + 4.0);
-        return score;
-    }
-
-    private List<EdgeHit> legalMoves() {
-        List<EdgeHit> moves = new ArrayList<>();
-
-        for (int row = 1; row < rows; row++) {
-            for (int column = 0; column < columns; column++) {
-                EdgeHit edge = new EdgeHit(true, row, column);
-                if (!isSelected(edge)) {
-                    moves.add(edge);
-                }
-            }
-        }
-
-        for (int row = 0; row < rows; row++) {
-            for (int column = 1; column < columns; column++) {
-                EdgeHit edge = new EdgeHit(false, row, column);
-                if (!isSelected(edge)) {
-                    moves.add(edge);
-                }
-            }
-        }
-
-        return moves;
-    }
-
-    private int strongestOpponentCaptureAfter(EdgeHit edge) {
-        int owner = currentPlayer;
-        setEdgeOwner(edge, owner);
-
-        try {
-            int strongest = 0;
-            for (EdgeHit candidate : legalMoves()) {
-                strongest = Math.max(strongest, countCapturesIfAdded(candidate));
-            }
-            return strongest;
-        } finally {
-            setEdgeOwner(edge, NO_PLAYER);
-        }
-    }
-
-    private int countCapturesIfAdded(EdgeHit edge) {
-        if (edge.horizontal) {
-            return capturesCellIfAdded(edge.rowOrLine - 1, edge.columnOrLine)
-                    + capturesCellIfAdded(edge.rowOrLine, edge.columnOrLine);
-        }
-
-        return capturesCellIfAdded(edge.rowOrLine, edge.columnOrLine - 1)
-                + capturesCellIfAdded(edge.rowOrLine, edge.columnOrLine);
-    }
-
-    private int capturesCellIfAdded(int row, int column) {
-        return row >= 0 && row < rows && column >= 0 && column < columns
-                && completedCells[row][column] == NO_PLAYER
-                && countCellEdges(row, column) == 3 ? 1 : 0;
-    }
-
-    private int countAlmostCompletedCellsIfAdded(EdgeHit edge) {
-        int owner = currentPlayer;
-        setEdgeOwner(edge, owner);
-
-        try {
-            if (edge.horizontal) {
-                return almostCompletedCell(edge.rowOrLine - 1, edge.columnOrLine)
-                        + almostCompletedCell(edge.rowOrLine, edge.columnOrLine);
-            }
-
-            return almostCompletedCell(edge.rowOrLine, edge.columnOrLine - 1)
-                    + almostCompletedCell(edge.rowOrLine, edge.columnOrLine);
-        } finally {
-            setEdgeOwner(edge, NO_PLAYER);
-        }
-    }
-
-    private int almostCompletedCell(int row, int column) {
-        return row >= 0 && row < rows && column >= 0 && column < columns
-                && completedCells[row][column] == NO_PLAYER
-                && countCellEdges(row, column) == 3 ? 1 : 0;
+        return copy;
     }
 
     enum ComputerDifficulty {
@@ -1161,21 +1105,6 @@ final class SquaresPanel extends JPanel {
         @Override
         public String toString() {
             return label;
-        }
-    }
-
-    private static final class ScoredMove implements Comparable<ScoredMove> {
-        private final EdgeHit edge;
-        private final double score;
-
-        private ScoredMove(EdgeHit edge, double score) {
-            this.edge = edge;
-            this.score = score;
-        }
-
-        @Override
-        public int compareTo(ScoredMove other) {
-            return Double.compare(other.score, score);
         }
     }
 

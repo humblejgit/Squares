@@ -11,7 +11,7 @@ final class Messages {
     static final String GAME_MODE_COMPUTER = "\u010clov\u011bk vs. CPU";
     static final String GAME_MODE_HOST = "S\u00ed\u0165ov\u00e1 hra - server";
     static final String GAME_MODE_JOIN = "S\u00ed\u0165ov\u00e1 hra - klient";
-    static final String GAME_MODE_PROMPT = "Vyber re\u017eim hry.";
+    static final String GAME_MODE_PROMPT = "RE\u017dIM HRY";
 
     static final String HOST_ADDRESS_PROMPT = "IP adresa hostitele:";
     static final String CONNECTING_TO_HOST = "P\u0159ipojov\u00e1n\u00ed k hostiteli...";

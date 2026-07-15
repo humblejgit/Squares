@@ -118,7 +118,7 @@ public final class SquaresApp {
         int[] selectedMode = {-1};
 
         panel.setBorder(new EmptyBorder(12, 12, 12, 12));
-        panel.add(new JLabel(Messages.GAME_MODE_PROMPT), BorderLayout.NORTH);
+        panel.add(new JLabel(Messages.GAME_MODE_PROMPT, JLabel.CENTER), BorderLayout.NORTH);
         addGameModeButton(buttons, dialog, selectedMode, Messages.GAME_MODE_COMPUTER, 1);
         addGameModeButton(buttons, dialog, selectedMode, Messages.GAME_MODE_LOCAL, 0);
         addGameModeButton(buttons, dialog, selectedMode, Messages.GAME_MODE_HOST, 2);

@@ -2,9 +2,10 @@
 
 Java okenni hra pro dva hrace inspirovana hrou tecky a ctverce.
 
-## Funkce verze 3.0
+## Funkce verze 3.1
 
-- hra clovek vs. CPU se tremi urovnemi obtiznosti
+- hra clovek vs. CPU se tremi urovnemi obtiznosti a strategii nad retezci ctvercu
+- promenliva doba premysleni CPU podle slozitosti pozice bez blokovani okna, zapocitana do limitu tahu
 - hra clovek vs. clovek na jednom PC
 - sitova hra v rezimu server/klient
 - prehledny uvodni dialog s volbami rezimu hry pod sebou
@@ -13,7 +14,7 @@ Java okenni hra pro dva hrace inspirovana hrou tecky a ctverce.
 - filtrovani virtualnich sitovych adapteru pri hostovani
 - zmena sitoveho adapteru a portu v nastaveni hostitelske hry
 - volitelna velikost pole 5x5 az 10x10
-- nastavitelna obtiznost CPU: lehka, stredni, tezka
+- nastavitelna obtiznost CPU: lehka, stredni a tezka s minimaxovym dohledem
 - skore, celkovy cas hry a cas premysleni kazdeho hrace
 - volitelny casovy limit tahu s prohrou padem na cas
 - nastaveni hry pred startem a z menu

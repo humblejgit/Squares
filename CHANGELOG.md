@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## 3.1 - 2026-07-15
+
+- Nadpis uvodniho dialogu pro vyber herniho rezimu byl zmenen na `REZIM HRY` a vycentrovan.
+- CPU ma promennou prodlevu tahu podle slozitosti pozice a vypocet probiha na pozadi; prodleva se zapocitava i pri casovem limitu, takze CPU muze prohrat na cas.
+- CPU rozpoznava bezpecne tahy a vyhodnocuje cele nucene retezce, takze pri nutne obeti vybira levnejsi variantu.
+- Tezka obtiznost pouziva casove omezeny minimax s alfa-beta prorezavanim a transpozicni tabulkou; vypocet tahu ma limit, aby zustalo okno plynule.
+- Rozhodovani CPU je oddeleno od Swing panelu do samostatne strategie, kterou lze overovat simulovanymi partiemi.
+
 ## 3.0 - 2026-07-13
 
 - Pridan novy rezim hry clovek vs. CPU na jednom PC.
