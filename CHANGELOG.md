@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+## 4.0 - ve vyvoji
+
+- Zavedeny domenove modely `PlayerProfile`, `PlayerResult` a `GameResult` jako zaklad profilu, historie her a budoucich zebricku.
+- Konec hry se uvnitr aplikace predava jako strukturovany vysledek vcetne ID hry, rezimu, duvodu ukonceni, skore, casu a parametru hry; text pro dialog a sitovy protokol se vytvari az ve vrstve zprav.
+- Pridana lokalni SQLite databaze v uzivatelske slozce aplikace, verzovane schema a transakcni outbox pro budouci synchronizaci se serverem.
+- Pridana sprava uzivatelskych profilu: vytvoreni, vyber, prejmenovani a archivace; lokalni hra umoznuje priradit profil i druhemu hraci.
+- Vysledky lokalnich, CPU a sitovych her se ukladaji vcetne snapshotu jmen a ID profilu; opakovany zapis stejneho `gameId` nevytvori duplicitu.
+- Pridana polozka `Hra -> Statistiky` pro lokalni hru, hru proti CPU, sitoveho hostitele i klienta se souhrnem aktualniho profilu a mistnim zebrickem.
+- Zebricek agreguje pocet her, vyhry, remizy, prohry, celkove skore a procento vyher ze zaznamu lokalnich profilu; zahrnuje i archivovane profily a vynechava CPU, hosty a pouze vzdalene profily.
+- Poradi zebricku urcuje celkove skore, dale pocet vyher, pocet her a nakonec jmeno profilu.
+- Sitovi hraci si pri spojeni vymeni identity profilu a oba ulozi stejny strukturovany vysledek se shodnym ID hry.
+- Distribucni JAR se sestavuje pres Maven Shade a obsahuje SQLite ovladac i potrebne nativni knihovny.
+- Verze projektu a kontrola sitoveho buildu byly sjednoceny na 4.0.0.
+
 ## 3.1 - 2026-07-15
 
 - Nadpis uvodniho dialogu pro vyber herniho rezimu byl zmenen na `REZIM HRY` a vycentrovan.

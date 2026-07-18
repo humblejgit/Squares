@@ -2,8 +2,15 @@
 
 Java okenni hra pro dva hrace inspirovana hrou tecky a ctverce.
 
-## Funkce verze 3.1
+Aktualni verze: **4.0**.
 
+## Funkce verze 4.0
+
+- lokalni uzivatelske profily s vyberem, prejmenovanim a archivaci
+- obrazovka statistik dostupna pres `Hra / Statistiky` ve vsech hernich rezimech
+- mistni zebricek aktivnich i archivovanych lokalnich profilu s poctem her, vyhrami, remizami, prohrami, celkovym skore a uspesnosti vyher
+- SQLite historie dokoncene hry a transakcni outbox pripraveny pro budouci serverovou synchronizaci
+- strukturovane vysledky her se shodnym ID na obou pocitacich v sitove hre
 - hra clovek vs. CPU se tremi urovnemi obtiznosti a strategii nad retezci ctvercu
 - promenliva doba premysleni CPU podle slozitosti pozice bez blokovani okna, zapocitana do limitu tahu
 - hra clovek vs. clovek na jednom PC
@@ -49,6 +56,9 @@ Projekt je kompatibilni s Java 8.
 ```powershell
 mvn package
 ```
+
+Vysledny samostatne spustitelny soubor je `target\squares.jar` a obsahuje i SQLite ovladac.
+Lokalni data se ve Windows ukladaji do `%LOCALAPPDATA%\Squares\squares.db`.
 
 ## Publikace release
 

@@ -15,10 +15,12 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
@@ -76,6 +78,10 @@ final class SquaresPanel extends JPanel {
     private boolean randomInitialEdgesEnabled;
     private int computerPlayer = NO_PLAYER;
     private ComputerDifficulty computerDifficulty = ComputerDifficulty.MEDIUM;
+    private PlayerProfile redProfile;
+    private PlayerProfile blueProfile;
+    private UUID gameId = UUID.randomUUID();
+    private Instant gameStartedAt = Instant.now();
     private final Random random = new Random();
     private Timer computerMoveTimer;
     private SwingWorker<ComputerStrategy.Decision, Void> computerMoveWorker;
@@ -375,6 +381,31 @@ final class SquaresPanel extends JPanel {
         this.localPlayer = localPlayer;
     }
 
+    void setPlayerProfiles(PlayerProfile redProfile, PlayerProfile blueProfile) {
+        if (redProfile != null && redProfile.equals(blueProfile)) {
+            throw new IllegalArgumentException("One profile cannot occupy both seats.");
+        }
+
+        this.redProfile = redProfile;
+        this.blueProfile = blueProfile;
+    }
+
+    PlayerProfile redPlayerProfile() {
+        return redProfile;
+    }
+
+    PlayerProfile bluePlayerProfile() {
+        return blueProfile;
+    }
+
+    String redPlayerDisplayName() {
+        return redProfile == null ? Messages.PLAYER_RED : redProfile.displayName();
+    }
+
+    String bluePlayerDisplayName() {
+        return blueProfile == null ? Messages.PLAYER_GUEST : blueProfile.displayName();
+    }
+
     void setComputerOpponent(ComputerDifficulty difficulty) {
         this.computerPlayer = BLUE_PLAYER;
         this.computerDifficulty = difficulty == null ? ComputerDifficulty.MEDIUM : difficulty;
@@ -441,6 +472,7 @@ final class SquaresPanel extends JPanel {
         clear(completedCells);
         hoveredEdge = null;
         lastMove = null;
+        beginNewGame();
         initializeTimes();
         currentPlayer = RED_PLAYER;
         gameOverAnnounced = false;
@@ -459,6 +491,7 @@ final class SquaresPanel extends JPanel {
         this.completedCells = new int[rows][columns];
         hoveredEdge = null;
         lastMove = null;
+        beginNewGame();
         initializeTimes();
         currentPlayer = RED_PLAYER;
         gameOverAnnounced = false;
@@ -695,9 +728,7 @@ final class SquaresPanel extends JPanel {
         SoundPlayer.gameOver();
 
         if (gameOverHandler != null) {
-            gameOverHandler.gameOver(currentPlayer == RED_PLAYER
-                    ? Messages.redLostOnTime()
-                    : Messages.blueLostOnTime());
+            gameOverHandler.gameOver(createGameResult(GameResult.FinishReason.TIME_LIMIT, currentPlayer));
         }
     }
 
@@ -886,7 +917,7 @@ final class SquaresPanel extends JPanel {
         SoundPlayer.gameOver();
 
         if (gameOverHandler != null) {
-            gameOverHandler.gameOver(winnerMessage());
+            gameOverHandler.gameOver(createGameResult(GameResult.FinishReason.BOARD_FULL, NO_PLAYER));
         }
     }
 
@@ -927,19 +958,77 @@ final class SquaresPanel extends JPanel {
         return countCompletedCells(RED_PLAYER) + countCompletedCells(BLUE_PLAYER) == rows * columns;
     }
 
-    private String winnerMessage() {
+    private GameResult createGameResult(GameResult.FinishReason finishReason, int timedOutPlayer) {
         int redScore = countCompletedCells(RED_PLAYER);
         int blueScore = countCompletedCells(BLUE_PLAYER);
+        PlayerResult.Outcome redOutcome;
+        PlayerResult.Outcome blueOutcome;
 
-        if (redScore > blueScore) {
-            return Messages.redWins(redScore, blueScore);
+        if (finishReason == GameResult.FinishReason.TIME_LIMIT) {
+            redOutcome = timedOutPlayer == RED_PLAYER ? PlayerResult.Outcome.LOSS : PlayerResult.Outcome.WIN;
+            blueOutcome = timedOutPlayer == BLUE_PLAYER ? PlayerResult.Outcome.LOSS : PlayerResult.Outcome.WIN;
+        } else if (redScore > blueScore) {
+            redOutcome = PlayerResult.Outcome.WIN;
+            blueOutcome = PlayerResult.Outcome.LOSS;
+        } else if (blueScore > redScore) {
+            redOutcome = PlayerResult.Outcome.LOSS;
+            blueOutcome = PlayerResult.Outcome.WIN;
+        } else {
+            redOutcome = PlayerResult.Outcome.DRAW;
+            blueOutcome = PlayerResult.Outcome.DRAW;
         }
 
-        if (blueScore > redScore) {
-            return Messages.blueWins(blueScore, redScore);
+        PlayerResult redResult = createPlayerResult(RED_PLAYER, redScore, redOutcome);
+        PlayerResult blueResult = createPlayerResult(BLUE_PLAYER, blueScore, blueOutcome);
+
+        return new GameResult(gameId, gameStartedAt, Instant.now(), gameMode(), finishReason,
+                rows, columns, thinkingTimeLimitSeconds, totalSeconds, randomInitialEdgesEnabled,
+                gameResultCpuDifficulty(), redResult, blueResult);
+    }
+
+    private PlayerResult createPlayerResult(int player, int score, PlayerResult.Outcome outcome) {
+        PlayerResult.Seat seat = player == RED_PLAYER ? PlayerResult.Seat.RED : PlayerResult.Seat.BLUE;
+        PlayerProfile profile = player == RED_PLAYER ? redProfile : blueProfile;
+        int thinkingSeconds = thinkingTimeUsedSeconds(player);
+
+        if (computerPlayer == player) {
+            return PlayerResult.computer(seat, Messages.PLAYER_CPU, score, thinkingSeconds, outcome);
         }
 
-        return Messages.draw(redScore, blueScore);
+        if (profile != null) {
+            return PlayerResult.forProfile(seat, profile, score, thinkingSeconds, outcome);
+        }
+
+        String displayName = player == RED_PLAYER ? redPlayerDisplayName() : bluePlayerDisplayName();
+        return PlayerResult.guest(seat, displayName, score, thinkingSeconds, outcome);
+    }
+
+    private int thinkingTimeUsedSeconds(int player) {
+        int displayedSeconds = player == RED_PLAYER ? redThinkingSeconds : blueThinkingSeconds;
+        return hasThinkingTimeLimit()
+                ? Math.max(0, thinkingTimeLimitSeconds - displayedSeconds)
+                : displayedSeconds;
+    }
+
+    private GameResult.Mode gameMode() {
+        if (computerPlayer != NO_PLAYER) {
+            return GameResult.Mode.COMPUTER;
+        }
+
+        return localPlayer == NO_PLAYER ? GameResult.Mode.LOCAL : GameResult.Mode.NETWORK;
+    }
+
+    private GameResult.CpuDifficulty gameResultCpuDifficulty() {
+        if (computerPlayer == NO_PLAYER) {
+            return null;
+        }
+
+        return GameResult.CpuDifficulty.valueOf(computerDifficulty.name());
+    }
+
+    private void beginNewGame() {
+        gameId = UUID.randomUUID();
+        gameStartedAt = Instant.now();
     }
 
     private Color cellColor(int owner) {
@@ -1135,7 +1224,7 @@ final class SquaresPanel extends JPanel {
     }
 
     interface GameOverHandler {
-        void gameOver(String message);
+        void gameOver(GameResult result);
     }
 
     interface RestartHandler {

@@ -15,11 +15,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 final class NetworkGame {
+    private static final String PROTOCOL_ID = "profiles-and-results-1";
+
     private NetworkGame() {
     }
 
-    static HostController host(JFrame frame, SquaresPanel panel, String hostAddress, int port) {
-        HostController controller = new HostController(frame, panel, hostAddress, port);
+    static HostController host(JFrame frame, SquaresPanel panel, String hostAddress, int port,
+                               PlayerProfile localProfile, GameResultRecorder recorder) {
+        HostController controller = new HostController(frame, panel, hostAddress, port, localProfile, recorder);
         panel.setLocalPlayer(SquaresPanel.RED_PLAYER);
         panel.setClockEnabled(false);
         controller.refreshNetworkInfo();
@@ -33,8 +36,12 @@ final class NetworkGame {
         return controller;
     }
 
-    static void join(JFrame frame, String host, int port) {
-        Thread clientThread = new Thread(() -> runClient(frame, host, port), "squares-client");
+    static void join(JFrame frame, String host, int port,
+                     PlayerProfile localProfile, GameResultRecorder recorder,
+                     StatisticsStore statisticsStore) {
+        Thread clientThread = new Thread(
+                () -> runClient(frame, host, port, localProfile, recorder, statisticsStore),
+                "squares-client");
         clientThread.setDaemon(true);
         clientThread.start();
     }
@@ -57,14 +64,23 @@ final class NetworkGame {
                     return;
                 }
 
+                output.println(encodeProfile(controller.localProfile()));
+                String clientProfileLine = input.readLine();
+                PlayerProfile clientProfile = decodeProfile(clientProfileLine);
+                controller.setClientProfile(clientProfile);
+                runOnEventThread(() -> {
+                    panel.setPlayerProfiles(controller.localProfile(), clientProfile);
+                    panel.resetGame();
+                    panel.setClockEnabled(true);
+                });
+
                 output.println("SIZE " + panel.boardRows() + " " + panel.boardColumns());
                 ChatPanel chat = createChatPanel(frame, panel, Messages.CHAT_HOST_TITLE, output);
                 String clientAddress = socket.getInetAddress().getHostAddress();
                 controller.setClientAddress(clientAddress);
-                panel.resetClock();
-                panel.setClockEnabled(true);
-                panel.setGameOverHandler(message ->
-                        askHostForNewGame(panel, output, hostReadyForNewGame, clientReadyForNewGame, message));
+                panel.setGameOverHandler(result ->
+                        askHostForNewGame(panel, output, hostReadyForNewGame, clientReadyForNewGame,
+                                controller.recorder(), result));
                 panel.setRestartHandler(() -> askHostForRestart(panel, output));
                 panel.setClockTickHandler(() -> sendState(panel, output));
                 panel.setMoveHandler((horizontal, rowOrLine, columnOrLine) -> {
@@ -92,7 +108,7 @@ final class NetworkGame {
                     }
                 }
             }
-        } catch (IOException exception) {
+        } catch (IOException | IllegalArgumentException exception) {
             if (!controller.consumeExpectedServerClose()) {
                 showNetworkError(Messages.NETWORK_HOST_ENDED, exception);
             }
@@ -110,12 +126,15 @@ final class NetworkGame {
         }
     }
 
-    private static void runClient(JFrame frame, String host, int port) {
+    private static void runClient(JFrame frame, String host, int port,
+                                  PlayerProfile localProfile, GameResultRecorder recorder,
+                                  StatisticsStore statisticsStore) {
         try (Socket socket = new Socket(host, port);
              BufferedReader input = reader(socket);
              PrintWriter output = writer(socket)) {
             SquaresPanel[] panel = new SquaresPanel[1];
             ChatPanel[] chat = new ChatPanel[1];
+            PlayerProfile[] hostProfile = new PlayerProfile[1];
             boolean buildVerified = false;
 
             String line;
@@ -128,24 +147,28 @@ final class NetworkGame {
                     }
 
                     String hostBuild = decodeNetworkValue(line.substring("BUILD ".length()));
-                    output.println("BUILD " + encodeNetworkValue(BuildInfo.buildId()));
+                    output.println("BUILD " + encodeNetworkValue(networkBuildId()));
                     String buildResult = input.readLine();
 
                     if (!"BUILD_OK".equals(buildResult)) {
-                        showNetworkMessage(frame, Messages.buildMismatch(hostBuild, BuildInfo.buildId()));
+                        showNetworkMessage(frame, Messages.buildMismatch(hostBuild, networkBuildId()));
                         closeFrame(frame);
                         return;
                     }
 
+                    hostProfile[0] = decodeProfile(input.readLine());
+                    output.println(encodeProfile(localProfile));
                     buildVerified = true;
                 } else if (line.startsWith("SIZE ")) {
-                    panel[0] = createClientPanel(frame, host, port, output, line, chat);
+                    panel[0] = createClientPanel(frame, host, port, output, line, chat,
+                            hostProfile[0], localProfile, statisticsStore);
                 } else if (line.startsWith("STATE ") && panel[0] != null) {
                     String state = line.substring("STATE ".length());
                     SwingUtilities.invokeLater(() -> panel[0].applyEncodedState(state));
-                } else if (line.startsWith("GAME_OVER ") && panel[0] != null) {
-                    String message = line.substring("GAME_OVER ".length());
-                    showClientGameOver(panel[0], message);
+                } else if (line.startsWith("GAME_RESULT ") && panel[0] != null) {
+                    GameResult result = GameResultCodec.decode(line.substring("GAME_RESULT ".length()));
+                    recorder.record(result);
+                    showClientGameOver(panel[0], Messages.gameOver(result));
                     output.println("GAME_OVER_ACK");
                 } else if ("RESET".equals(line) && panel[0] != null) {
                     SwingUtilities.invokeLater(panel[0]::resetGame);
@@ -159,13 +182,15 @@ final class NetworkGame {
                     receiveChatMessage(chat[0], Messages.CHAT_HOST, line);
                 }
             }
-        } catch (IOException exception) {
+        } catch (IOException | IllegalArgumentException exception) {
             showNetworkError(Messages.NETWORK_CONNECT_FAILED, exception);
         }
     }
 
     private static SquaresPanel createClientPanel(JFrame frame, String host, int port, PrintWriter output, String line,
-                                                   ChatPanel[] chat) {
+                                                   ChatPanel[] chat, PlayerProfile hostProfile,
+                                                   PlayerProfile localProfile,
+                                                   StatisticsStore statisticsStore) {
         String[] parts = line.split(" ");
 
         if (parts.length != 3) {
@@ -178,9 +203,11 @@ final class NetworkGame {
 
         runOnEventThread(() -> {
             SquaresPanel panel = new SquaresPanel(rows, columns);
+            panel.setPlayerProfiles(hostProfile, localProfile);
             panel.setLocalPlayer(SquaresPanel.BLUE_PLAYER);
             panel.setClockEnabled(false);
-            panel.setNetworkInfo(Messages.clientInfo(host, port, rows, columns) + "\n" + Messages.connected());
+            panel.setNetworkInfo(Messages.clientInfo(host, port, rows, columns) + "\n"
+                    + Messages.networkPlayersStatus(hostProfile.displayName(), localProfile.displayName()));
             panel.setMoveHandler((horizontal, rowOrLine, columnOrLine) ->
                     output.println("MOVE " + edgeType(horizontal) + " " + rowOrLine + " " + columnOrLine));
             panel.setRestartHandler(() -> {
@@ -199,6 +226,7 @@ final class NetworkGame {
             }
 
             SquaresApp.showNetworkContent(frame, panel, chat[0]);
+            SquaresApp.installNetworkClientGameMenu(frame, panel, statisticsStore, localProfile);
             createdPanel[0] = panel;
         });
 
@@ -215,7 +243,7 @@ final class NetworkGame {
 
     private static boolean verifyClientBuild(SquaresPanel panel, BufferedReader input, PrintWriter output)
             throws IOException {
-        String hostBuild = BuildInfo.buildId();
+        String hostBuild = networkBuildId();
         output.println("BUILD " + encodeNetworkValue(hostBuild));
 
         String line = input.readLine();
@@ -236,6 +264,10 @@ final class NetworkGame {
 
         output.println("BUILD_OK");
         return true;
+    }
+
+    private static String networkBuildId() {
+        return BuildInfo.buildId() + "/" + PROTOCOL_ID;
     }
 
     private static ChatPanel createChatPanel(JFrame frame, SquaresPanel panel, String title, PrintWriter output) {
@@ -281,6 +313,27 @@ final class NetworkGame {
         }
     }
 
+    private static String encodeProfile(PlayerProfile profile) {
+        return "PROFILE " + profile.id() + " " + profile.createdAt().toEpochMilli() + " "
+                + encodeNetworkValue(profile.displayName());
+    }
+
+    private static PlayerProfile decodeProfile(String line) {
+        if (line == null || !line.startsWith("PROFILE ")) {
+            throw new IllegalArgumentException(Messages.NETWORK_INCOMPATIBLE_PROTOCOL);
+        }
+
+        String[] parts = line.split(" ", 4);
+        if (parts.length != 4) {
+            throw new IllegalArgumentException(Messages.NETWORK_INCOMPATIBLE_PROTOCOL);
+        }
+
+        return new PlayerProfile(java.util.UUID.fromString(parts[1]),
+                decodeNetworkValue(parts[3]),
+                java.time.Instant.ofEpochMilli(Long.parseLong(parts[2])),
+                false);
+    }
+
     private static void applyRemoteMove(SquaresPanel panel, PrintWriter output, String line) {
         String[] parts = line.split(" ");
 
@@ -307,9 +360,17 @@ final class NetworkGame {
     private static void askHostForNewGame(SquaresPanel panel, PrintWriter output,
                                           boolean[] hostReadyForNewGame,
                                           boolean[] clientReadyForNewGame,
-                                          String message) {
+                                          GameResultRecorder recorder,
+                                          GameResult result) {
+        String message = Messages.gameOver(result);
+        recorder.record(result);
         output.println("STATE " + panel.encodeState());
-        output.println("GAME_OVER " + message);
+        try {
+            output.println("GAME_RESULT " + GameResultCodec.encode(result));
+        } catch (IOException exception) {
+            showNetworkError(Messages.NETWORK_CONNECT_FAILED, exception);
+            return;
+        }
 
         int choice = JOptionPane.showConfirmDialog(panel,
                 message + "\n\n" + Messages.NEW_GAME_PROMPT,
@@ -436,19 +497,33 @@ final class NetworkGame {
     static final class HostController {
         private final JFrame frame;
         private final SquaresPanel panel;
+        private final PlayerProfile localProfile;
+        private final GameResultRecorder recorder;
         private String hostAddress;
         private int port;
         private volatile ServerSocket serverSocket;
         private volatile PrintWriter output;
         private volatile String clientAddress;
+        private volatile PlayerProfile clientProfile;
         private volatile boolean settingsDialogOpen;
         private volatile boolean expectedServerClose;
 
-        private HostController(JFrame frame, SquaresPanel panel, String hostAddress, int port) {
+        private HostController(JFrame frame, SquaresPanel panel, String hostAddress, int port,
+                               PlayerProfile localProfile, GameResultRecorder recorder) {
             this.frame = frame;
             this.panel = panel;
             this.hostAddress = hostAddress;
             this.port = port;
+            this.localProfile = localProfile;
+            this.recorder = recorder;
+        }
+
+        private PlayerProfile localProfile() {
+            return localProfile;
+        }
+
+        private GameResultRecorder recorder() {
+            return recorder;
         }
 
         void startListening() {
@@ -500,7 +575,8 @@ final class NetworkGame {
             if (clientAddress == null) {
                 info += "\n" + Messages.waitingForClient();
             } else {
-                info += "\n" + Messages.clientConnected(clientAddress);
+                info += "\n" + Messages.networkPlayersStatus(
+                        localProfile.displayName(), clientProfile.displayName());
             }
 
             panel.setNetworkInfo(info);
@@ -573,6 +649,10 @@ final class NetworkGame {
         private void setClientAddress(String clientAddress) {
             this.clientAddress = clientAddress;
             SwingUtilities.invokeLater(this::refreshNetworkInfo);
+        }
+
+        private void setClientProfile(PlayerProfile clientProfile) {
+            this.clientProfile = clientProfile;
         }
     }
 }
