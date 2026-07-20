@@ -1,0 +1,58 @@
+SQUARES PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2026 Jan Pokorny. All rights reserved.
+
+1. Limited permission
+
+The copyright holder grants an individual end user a limited, revocable,
+non-exclusive, non-transferable license to download, install, and run an
+unmodified binary release of Squares for personal, non-commercial use.
+
+2. Restrictions
+
+Except where the copyright holder has given prior written permission, no
+permission is granted to:
+
+a) copy, reproduce, modify, adapt, translate, merge, or create derivative
+   works from the Squares source code;
+b) redistribute, publish, sublicense, rent, lease, sell, or otherwise make
+   available the Squares source code or binary releases;
+c) use Squares or any part of it for a commercial purpose;
+d) reverse engineer, decompile, or disassemble a Squares binary, except to
+   the limited extent expressly permitted by mandatory applicable law; or
+e) remove or alter copyright, ownership, or license notices.
+
+3. Ownership
+
+Squares and its original source code remain the exclusive property of the
+copyright holder. All rights not expressly granted by this license are
+reserved. Access to source code does not transfer ownership or grant any
+right to reuse it.
+
+4. Third-party software
+
+Squares includes third-party software governed by its own license terms.
+Those components and their licenses are identified in
+META-INF/licenses/THIRD-PARTY-NOTICES.txt. This license does not restrict
+rights granted directly by the owners of those third-party components.
+
+5. Termination
+
+This license terminates automatically upon breach of any of its terms. Upon
+termination, the user must stop using Squares and delete all copies in the
+user's possession or control, except where retention is required by law.
+
+6. Disclaimer of warranty
+
+SQUARES IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+7. Limitation of liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER SHALL
+NOT BE LIABLE FOR ANY CLAIM, LOSS, OR OTHER LIABILITY ARISING FROM OR IN
+CONNECTION WITH SQUARES OR ITS USE.
+
+Any use not expressly permitted by this license requires prior written
+permission from the copyright holder.

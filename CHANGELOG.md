@@ -1,6 +1,14 @@
 ﻿# Changelog
 
-## 4.0 - ve vyvoji
+## 4.1 - 2026-07-20
+
+- Puvodni kod Squares je chranen proprietarni licenci pro osobni nekomercni pouziti nezmeneneho JARu.
+- Do JARu se vklada vlastni licence i licence knihoven tretich stran a publikacni skript jejich obsah povinne overuje.
+- Java jmenny prostor byl zmenen z `cz.codex.squares` na `cz.humblej.squares` a tridy byly rozdeleny do logickych balicku.
+- Tridy `SquaresPanel`, `SquaresApp` a `NetworkGame` byly rozdeleny na mensi komponenty pro vykreslovani, kodovani stavu, tahy CPU, konfiguracni dialogy, sitovy protokol a klientskou relaci bez zmeny jejich verejneho chovani.
+- Verze projektu a kontrola sitoveho buildu byly sjednoceny na 4.1.0.
+
+## 4.0 - 2026-07-18
 
 - Zavedeny domenove modely `PlayerProfile`, `PlayerResult` a `GameResult` jako zaklad profilu, historie her a budoucich zebricku.
 - Konec hry se uvnitr aplikace predava jako strukturovany vysledek vcetne ID hry, rezimu, duvodu ukonceni, skore, casu a parametru hry; text pro dialog a sitovy protokol se vytvari az ve vrstve zprav.

@@ -1,0 +1,33 @@
+Squares third-party software notices
+====================================
+
+These notices apply only to the listed third-party components. The original
+Squares code is proprietary and is governed by LICENSE.txt in the project root
+and by META-INF/LICENSE.txt in the binary distribution.
+
+This distribution includes the following third-party software:
+
+1. Xerial SQLite JDBC 3.53.2.0
+   Project: https://github.com/xerial/sqlite-jdbc
+   License: Apache License 2.0
+
+   The driver also contains code derived from the Zentus SQLite JDBC driver,
+   distributed under a BSD-2-Clause-style license. Complete license texts are
+   included in this directory as:
+
+   - sqlite-jdbc-3.53.2.0-Apache-2.0.txt
+   - sqlite-jdbc-Zentus-BSD-2-Clause.txt
+
+   The SQLite database engine bundled by Xerial SQLite JDBC is dedicated to
+   the public domain. See https://www.sqlite.org/copyright.html.
+
+2. SLF4J API and SLF4J NOP 1.7.36
+   Project: https://www.slf4j.org/
+   License: MIT
+
+   The complete license text is included in this directory as:
+
+   - slf4j-1.7.36-MIT.txt
+
+JUnit 4.13.2 and Hamcrest Core 1.3 are used only to compile and run tests.
+They are not included in the distributed Squares JAR.
