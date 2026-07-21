@@ -1,0 +1,716 @@
+openapi: 3.1.1
+info:
+  title: Squares Server API
+  version: 1.0.0
+  summary: Ucty, synchronizace vysledku a globalni zebricek hry Squares.
+  description: >-
+    Prvni verejny kontrakt pro Windows a Android klienta. Prihlaseni zajistuje
+    externi OpenID Connect provider; API nikdy neprijima hesla.
+  license:
+    name: Squares Proprietary Software License
+externalDocs:
+  description: Rozhodnuti, identity a pravidla duveryhodnosti
+  url: ../server-api-v1.md
+servers:
+  - url: https://api.squares.example/api/v1
+    description: Placeholder produkcni adresy; konkretni domena bude zvolena pri nasazeni.
+tags:
+  - name: Metadata
+  - name: Identity
+  - name: Submissions
+  - name: Public
+security:
+  - bearerAuth: []
+paths:
+  /meta:
+    get:
+      tags: [Metadata]
+      operationId: getMetadata
+      summary: Vrati kompatibilitu serveru a klientu.
+      security: []
+      responses:
+        '200':
+          description: Metadata API.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metadata'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /me:
+    get:
+      tags: [Identity]
+      operationId: getMe
+      summary: Vrati serverovy ucet odvozeny z access tokenu.
+      responses:
+        '200':
+          description: Vlastni ucet a volitelny verejny profil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /me/profile:
+    put:
+      tags: [Identity]
+      operationId: putMyProfile
+      summary: Vytvori nebo uplne aktualizuje verejny profil.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutProfileRequest'
+      responses:
+        '200':
+          description: Profil byl aktualizovan.
+          headers:
+            ETag:
+              description: Revize profilu pro budouci podminene zapisy.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPlayer'
+        '201':
+          description: Profil byl vytvoren.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPlayer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /me/installations/{installationId}:
+    put:
+      tags: [Identity]
+      operationId: putMyInstallation
+      summary: Idempotentne zaregistruje nebo obnovi jednu instalaci klienta.
+      parameters:
+        - $ref: '#/components/parameters/InstallationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutInstallationRequest'
+      responses:
+        '200':
+          description: Instalace byla obnovena.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Installation'
+        '201':
+          description: Instalace byla vytvorena.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Installation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /me/game-submissions/{gameId}:
+    get:
+      tags: [Submissions]
+      operationId: getMyGameSubmission
+      summary: Vrati stav vlastniho podani vysledku.
+      parameters:
+        - $ref: '#/components/parameters/GameIdPath'
+      responses:
+        '200':
+          description: Stav podani.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameSubmissionStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    put:
+      tags: [Submissions]
+      operationId: putMyGameSubmission
+      summary: Idempotentne ulozi dokoncenou lokalni, CPU nebo LAN hru.
+      description: >-
+        Stejne telo lze bezpecne opakovat. Jiny obsah pro stejne gameId a
+        prihlaseneho hrace vraci 409. Tento endpoint nikdy nevytvari ranked hru.
+      parameters:
+        - $ref: '#/components/parameters/GameIdPath'
+        - $ref: '#/components/parameters/InstallationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutGameSubmissionRequest'
+      responses:
+        '200':
+          description: Existujici idempotentni podani nebo aktualizovany stav parovani.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameSubmissionStatus'
+        '201':
+          description: Nove podani bylo ulozeno.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameSubmissionStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /players/{playerId}:
+    get:
+      tags: [Public]
+      operationId: getPlayer
+      summary: Vrati verejny profil hrace.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PlayerIdPath'
+      responses:
+        '200':
+          description: Verejny profil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPlayer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /players/{playerId}/statistics:
+    get:
+      tags: [Public]
+      operationId: getPlayerStatistics
+      summary: Vrati oddelene casual a ranked statistiky hrace.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PlayerIdPath'
+      responses:
+        '200':
+          description: Verejne statistiky.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerStatistics'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /leaderboards/{board}:
+    get:
+      tags: [Public]
+      operationId: getLeaderboard
+      summary: Vrati jednu stranku globalniho zebricku.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/LeaderboardBoardPath'
+        - name: limit
+          in: query
+          description: Maximalni pocet polozek.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          description: Nepruhledny kurzor z predchozi odpovedi.
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        '200':
+          description: Stranka zebricku.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: OIDC access token pro audience Squares API.
+  parameters:
+    GameIdPath:
+      name: gameId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PlayerIdPath:
+      name: playerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InstallationIdPath:
+      name: installationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InstallationIdHeader:
+      name: X-Squares-Installation-Id
+      in: header
+      required: true
+      description: Diagnosticke ID registrovane instalace; nejde o autentizaci.
+      schema:
+        type: string
+        format: uuid
+    LeaderboardBoardPath:
+      name: board
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [casual, ranked]
+  responses:
+    BadRequest:
+      description: Neplatny pozadavek.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Chybejici nebo neplatny access token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Operace neni pro ucet povolena.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Zdroj nebyl nalezen.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Konflikt handle nebo idempotentniho podani.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableContent:
+      description: Pozadavek porusuje domenovy nebo herni invariant.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Prekrocen limit pozadavku.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Metadata:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, currentRulesVersion, minimumWindowsVersion, minimumAndroidVersion, serverTime]
+      properties:
+        apiVersion:
+          type: string
+          const: v1
+        currentRulesVersion:
+          type: integer
+          minimum: 1
+        minimumWindowsVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+        minimumAndroidVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+        serverTime:
+          type: string
+          format: date-time
+    SemanticVersion:
+      type: string
+      pattern: '^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$'
+      examples: [4.2.0]
+    Me:
+      type: object
+      additionalProperties: false
+      required: [accountStatus, onboardingRequired, createdAt]
+      properties:
+        accountStatus:
+          type: string
+          enum: [ACTIVE, BLOCKED]
+        onboardingRequired:
+          type: boolean
+        player:
+          $ref: '#/components/schemas/PublicPlayer'
+        createdAt:
+          type: string
+          format: date-time
+    PutProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [handle, displayName]
+      properties:
+        handle:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9_-]{2,23}$'
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 40
+    PublicPlayer:
+      type: object
+      additionalProperties: false
+      required: [playerId, handle, displayName, revision, createdAt]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        handle:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9_-]{2,23}$'
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 40
+        revision:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+    PutInstallationRequest:
+      type: object
+      additionalProperties: false
+      required: [platform, appVersion, coreVersion, locale]
+      properties:
+        platform:
+          type: string
+          enum: [WINDOWS, ANDROID]
+        appVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+        coreVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 35
+          examples: [cs-CZ]
+    Installation:
+      type: object
+      additionalProperties: false
+      required: [installationId, platform, appVersion, coreVersion, locale, createdAt, lastSeenAt]
+      properties:
+        installationId:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum: [WINDOWS, ANDROID]
+        appVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+        coreVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+        locale:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+    PutGameSubmissionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - rulesVersion
+        - coreVersion
+        - mode
+        - finishReason
+        - startedAt
+        - finishedAt
+        - rows
+        - columns
+        - thinkingTimeLimitSeconds
+        - totalSeconds
+        - randomInitialEdges
+        - submittedBySeat
+        - players
+      properties:
+        rulesVersion:
+          type: integer
+          minimum: 1
+        coreVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+        mode:
+          type: string
+          enum: [LOCAL, COMPUTER, NETWORK]
+        finishReason:
+          type: string
+          enum: [BOARD_FULL, TIME_LIMIT]
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        rows:
+          type: integer
+          minimum: 5
+          maximum: 10
+        columns:
+          type: integer
+          minimum: 5
+          maximum: 10
+        thinkingTimeLimitSeconds:
+          type: integer
+          minimum: 0
+        totalSeconds:
+          type: integer
+          minimum: 0
+        randomInitialEdges:
+          type: boolean
+        cpuDifficulty:
+          type: string
+          enum: [EASY, MEDIUM, HARD]
+        submittedBySeat:
+          $ref: '#/components/schemas/Seat'
+        players:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/SubmittedPlayer'
+    SubmittedPlayer:
+      type: object
+      additionalProperties: false
+      required: [seat, playerType, displayNameSnapshot, score, thinkingSeconds, outcome]
+      properties:
+        seat:
+          $ref: '#/components/schemas/Seat'
+        playerType:
+          type: string
+          enum: [PROFILE, GUEST, CPU]
+        playerId:
+          type: string
+          format: uuid
+          description: Jen serverova identita; lokalni PlayerProfile.id se neposila.
+        displayNameSnapshot:
+          type: string
+          minLength: 1
+          maxLength: 40
+        score:
+          type: integer
+          minimum: 0
+        thinkingSeconds:
+          type: integer
+          minimum: 0
+        outcome:
+          type: string
+          enum: [WIN, LOSS, DRAW]
+    Seat:
+      type: string
+      enum: [RED, BLUE]
+    GameSubmissionStatus:
+      type: object
+      additionalProperties: false
+      required: [gameId, submissionStatus, verificationStatus, ranked, receivedAt, updatedAt]
+      properties:
+        gameId:
+          type: string
+          format: uuid
+        submissionStatus:
+          type: string
+          enum: [ACCEPTED, PENDING_PEER, MATCHED, CONFLICTED]
+        verificationStatus:
+          type: string
+          enum: [UNVERIFIED, PEER_CONFIRMED, SERVER_VERIFIED, CONFLICTED]
+        ranked:
+          type: boolean
+          const: false
+          description: Clientem vytvorene podani ve v1 nikdy neni ranked.
+        receivedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Statistics:
+      type: object
+      additionalProperties: false
+      required: [games, wins, draws, losses, totalScore, winPercentage]
+      properties:
+        games:
+          type: integer
+          minimum: 0
+        wins:
+          type: integer
+          minimum: 0
+        draws:
+          type: integer
+          minimum: 0
+        losses:
+          type: integer
+          minimum: 0
+        totalScore:
+          type: integer
+          minimum: 0
+        winPercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+    PlayerStatistics:
+      type: object
+      additionalProperties: false
+      required: [player, casual, ranked, generatedAt]
+      properties:
+        player:
+          $ref: '#/components/schemas/PublicPlayer'
+        casual:
+          $ref: '#/components/schemas/Statistics'
+        ranked:
+          $ref: '#/components/schemas/Statistics'
+        generatedAt:
+          type: string
+          format: date-time
+    LeaderboardPage:
+      type: object
+      additionalProperties: false
+      required: [board, rankingMetric, entries, generatedAt]
+      properties:
+        board:
+          type: string
+          enum: [casual, ranked]
+        rankingMetric:
+          type: string
+          enum: [TOTAL_SCORE, RATING]
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        nextCursor:
+          type: string
+          maxLength: 512
+        generatedAt:
+          type: string
+          format: date-time
+    LeaderboardEntry:
+      type: object
+      additionalProperties: false
+      required: [rank, player, statistics]
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        player:
+          $ref: '#/components/schemas/PublicPlayer'
+        statistics:
+          $ref: '#/components/schemas/Statistics'
+        rating:
+          type: integer
+          minimum: 0
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details s aplikacnim kodem.
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Violation'
+    Violation:
+      type: object
+      additionalProperties: false
+      required: [field, code]
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string

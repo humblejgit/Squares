@@ -37,22 +37,22 @@ function Assert-JarLicenses {
         },
         @{
             Entry = "META-INF/licenses/THIRD-PARTY-NOTICES.txt"
-            Source = "src\main\resources\META-INF\licenses\THIRD-PARTY-NOTICES.txt"
+            Source = "squares-desktop\src\main\resources\META-INF\licenses\THIRD-PARTY-NOTICES.txt"
             Marker = "Squares third-party software notices"
         },
         @{
             Entry = "META-INF/licenses/sqlite-jdbc-3.53.2.0-Apache-2.0.txt"
-            Source = "src\main\resources\META-INF\licenses\sqlite-jdbc-3.53.2.0-Apache-2.0.txt"
+            Source = "squares-desktop\src\main\resources\META-INF\licenses\sqlite-jdbc-3.53.2.0-Apache-2.0.txt"
             Marker = "Apache License"
         },
         @{
             Entry = "META-INF/licenses/sqlite-jdbc-Zentus-BSD-2-Clause.txt"
-            Source = "src\main\resources\META-INF\licenses\sqlite-jdbc-Zentus-BSD-2-Clause.txt"
+            Source = "squares-desktop\src\main\resources\META-INF\licenses\sqlite-jdbc-Zentus-BSD-2-Clause.txt"
             Marker = "Copyright (c) 2006, David Crawshaw"
         },
         @{
             Entry = "META-INF/licenses/slf4j-1.7.36-MIT.txt"
-            Source = "src\main\resources\META-INF\licenses\slf4j-1.7.36-MIT.txt"
+            Source = "squares-desktop\src\main\resources\META-INF\licenses\slf4j-1.7.36-MIT.txt"
             Marker = "Copyright (c) 2004-2022 QOS.ch"
         }
     )

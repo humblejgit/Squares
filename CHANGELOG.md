@@ -1,5 +1,16 @@
 ﻿# Changelog
 
+## 4.2 - 2026-07-20
+
+- Stav desky, pravidla tahu, skore, herni hodiny a zivotni cyklus hry byly oddeleny od Swingu do platformne nezavisleho `GameEngine`.
+- Pridany sdilene typy tahu a snapshotu hry a samostatne sestaveni strukturovaneho vysledku bez zavislosti na uzivatelskem rozhrani.
+- Swingovy panel nyni funguje jako adapter nad hernim jadrem; sitovy format stavu zustal zpetne kompatibilni.
+- Nahodne rozehrani a datovy typ tahu CPU byly sjednoceny s hernim jadrem.
+- Pridany prime testy pravidel, casoveho limitu, snapshotu a nahodneho rozehrani bez spousteni Swingu.
+- Herni jadro bylo fyzicky vycleneno do samostatneho Maven modulu `squares-core`; Swing aplikace a jeji infrastruktura jsou v modulu `squares-desktop`.
+- Verze projektu a kontrola sitoveho buildu byly sjednoceny na 4.2.0.
+- Navrzeno verzovane REST API v1 a serverove identity pro spolecny Windows a Android ucet, OIDC prihlaseni, idempotentni synchronizaci vysledku a oddelene casual/ranked zebriky.
+
 ## 4.1 - 2026-07-20
 
 - Puvodni kod Squares je chranen proprietarni licenci pro osobni nekomercni pouziti nezmeneneho JARu.
