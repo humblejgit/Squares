@@ -1,5 +1,6 @@
 package cz.humblej.squares.app;
 
+import cz.humblej.squares.auth.OnlineAccountService;
 import cz.humblej.squares.model.GameResult;
 import cz.humblej.squares.model.PlayerProfile;
 import cz.humblej.squares.network.NetworkGame;
@@ -14,6 +15,7 @@ import cz.humblej.squares.persistence.StatisticsStore;
 import cz.humblej.squares.persistence.StorageException;
 import cz.humblej.squares.ui.ChatPanel;
 import cz.humblej.squares.ui.Messages;
+import cz.humblej.squares.ui.OnlineAccountDialog;
 import cz.humblej.squares.ui.ProfileDialog;
 import cz.humblej.squares.ui.SoundPlayer;
 import cz.humblej.squares.ui.SquaresPanel;
@@ -45,6 +47,7 @@ import java.util.List;
 
 public final class SquaresApp {
     private static final int DEFAULT_NETWORK_PORT = 1080;
+    private static final OnlineAccountService ONLINE_ACCOUNT = OnlineAccountService.systemDefault();
 
     private SquaresApp() {
     }
@@ -330,6 +333,7 @@ public final class SquaresApp {
         JMenuItem settingsItem = new JMenuItem(Messages.MENU_SETTINGS);
         JMenuItem switchProfileItem = new JMenuItem(Messages.MENU_SWITCH_PROFILE);
         JMenuItem statisticsItem = new JMenuItem(Messages.MENU_STATISTICS);
+        JMenuItem onlineAccountItem = new JMenuItem(Messages.MENU_ONLINE_ACCOUNT);
         JCheckBoxMenuItem soundsItem = new JCheckBoxMenuItem(Messages.MENU_SOUNDS, SoundPlayer.isEnabled());
         JMenuItem aboutItem = new JMenuItem(Messages.MENU_ABOUT);
         JMenuItem exitItem = new JMenuItem(Messages.MENU_EXIT);
@@ -339,6 +343,8 @@ public final class SquaresApp {
         }
         switchProfileItem.addActionListener(event -> switchProfileAction.run());
         statisticsItem.addActionListener(event -> statisticsAction.run());
+        onlineAccountItem.addActionListener(event ->
+                showOnlineAccount(frame, panel, pauseClockForDialogs));
         soundsItem.addActionListener(event -> SoundPlayer.setEnabled(soundsItem.isSelected()));
         aboutItem.addActionListener(event -> showAbout(frame, panel, pauseClockForDialogs));
         exitItem.addActionListener(event -> exitApplication(frame));
@@ -347,6 +353,7 @@ public final class SquaresApp {
         }
         gameMenu.add(switchProfileItem);
         gameMenu.add(statisticsItem);
+        gameMenu.add(onlineAccountItem);
         gameMenu.add(soundsItem);
         gameMenu.addSeparator();
         gameMenu.add(aboutItem);
@@ -388,6 +395,19 @@ public final class SquaresApp {
 
         try {
             StatisticsDialog.show(frame, statisticsStore, currentProfile);
+        } finally {
+            if (pauseClock) {
+                panel.setClockPausedByDialog(false);
+            }
+        }
+    }
+
+    private static void showOnlineAccount(JFrame frame, SquaresPanel panel, boolean pauseClock) {
+        if (pauseClock) {
+            panel.setClockPausedByDialog(true);
+        }
+        try {
+            OnlineAccountDialog.show(frame, ONLINE_ACCOUNT);
         } finally {
             if (pauseClock) {
                 panel.setClockPausedByDialog(false);

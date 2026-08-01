@@ -1,0 +1,10 @@
+.git
+.agents
+.codex
+.idea
+.vscode
+dist
+out
+target
+**/target
+*.class

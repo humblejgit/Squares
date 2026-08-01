@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_DB: squares
+      POSTGRES_USER: squares
+      POSTGRES_PASSWORD: squares-local
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - squares-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U squares -d squares"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  keycloak:
+    build:
+      context: .
+      dockerfile: squares-server/keycloak.Dockerfile
+    image: squares-keycloak:26.7.0
+    command:
+      - start
+      - --optimized
+      - --import-realm
+      - --hostname=http://localhost:9090
+      - --http-enabled=true
+      - --http-host=0.0.0.0
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: squares-admin
+    ports:
+      - "127.0.0.1:9090:8080"
+    volumes:
+      - ./squares-server/keycloak:/opt/keycloak/data/import:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 180s
+
+  api:
+    build:
+      context: .
+      dockerfile: squares-server/Dockerfile
+    environment:
+      SQUARES_DATABASE_URL: jdbc:postgresql://postgres:5432/squares
+      SQUARES_DATABASE_USERNAME: squares
+      SQUARES_DATABASE_PASSWORD: squares-local
+      SQUARES_OIDC_ISSUER: http://localhost:9090/realms/squares
+      SQUARES_OIDC_AUDIENCE: squares-api
+      SQUARES_OIDC_JWK_SET_URI: http://keycloak:8080/realms/squares/protocol/openid-connect/certs
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+
+volumes:
+  squares-postgres-data:

@@ -398,7 +398,7 @@ components:
     SemanticVersion:
       type: string
       pattern: '^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$'
-      examples: [4.2.0]
+      examples: [4.3.0]
     Me:
       type: object
       additionalProperties: false

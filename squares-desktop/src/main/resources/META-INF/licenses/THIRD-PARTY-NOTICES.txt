@@ -29,5 +29,18 @@ This distribution includes the following third-party software:
 
    - slf4j-1.7.36-MIT.txt
 
+3. Jackson Databind, Core, Annotations and Java 8 date/time module 2.17.2
+   Project: https://github.com/FasterXML/jackson
+   License: Apache License 2.0
+
+4. Java Native Access (JNA) and JNA Platform 5.13.0
+   Project: https://github.com/java-native-access/jna
+   License selected for this distribution: Apache License 2.0
+
+   The complete Apache License 2.0 text for items 1, 3 and 4 is included in
+   this directory as:
+
+   - sqlite-jdbc-3.53.2.0-Apache-2.0.txt
+
 JUnit 4.13.2 and Hamcrest Core 1.3 are used only to compile and run tests.
 They are not included in the distributed Squares JAR.

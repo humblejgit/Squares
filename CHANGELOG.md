@@ -1,5 +1,25 @@
 ﻿# Changelog
 
+## 4.3 - 2026-08-01
+
+- Pridan zaklad serveroveho modulu se Spring Boot, PostgreSQL migracemi a Docker Compose.
+- Pridan verejny endpoint `GET /api/v1/meta` a health check serveru.
+- Pridana validace OIDC JWT tokenu vcetne issueru, audience a subjectu.
+- Pridano automaticke zakladani serverovych uctu a identit, `GET /api/v1/me`
+  a idempotentni `PUT /api/v1/me/profile`.
+- Pridany integracni testy identity API proti PostgreSQL vcetne soubezneho
+  prvniho prihlaseni a kolize verejneho handle.
+- Pridan lokalni Keycloak realm s PKCE klientem, testovacim uzivatelem a
+  PowerShell testem ziveho prihlaseni proti `GET /api/v1/me`.
+- Desktop klient se prihlasuje pres systemovy prohlizec pomoci OIDC
+  Authorization Code + PKCE a zachytava callback na nahodnem loopback portu.
+- Access, refresh a ID token se ukladaji sifrovane pomoci Windows DPAPI;
+  klient obnovuje access token pred vyprsenim i po `401` a neplatnou relaci
+  bezpecne zahodi.
+- V menu `Hra / Online ucet` lze nacist `GET /api/v1/me`, dokoncit nebo upravit
+  profil pres `PUT /api/v1/me/profile` a odhlasit se vcetne revokace refresh
+  tokenu.
+
 ## 4.2 - 2026-07-20
 
 - Stav desky, pravidla tahu, skore, herni hodiny a zivotni cyklus hry byly oddeleny od Swingu do platformne nezavisleho `GameEngine`.

@@ -54,6 +54,7 @@ public final class Messages {
     public static final String MENU_SETTINGS = "Nastaven\u00ed";
     public static final String MENU_SWITCH_PROFILE = "P\u0159epnout profil";
     public static final String MENU_STATISTICS = "Statistiky";
+    public static final String MENU_ONLINE_ACCOUNT = "Online \u00fa\u010det";
     public static final String MENU_SOUNDS = "Zvuky";
     public static final String MENU_ABOUT = "O h\u0159e";
     public static final String MENU_EXIT = "Ukon\u010dit";
@@ -73,6 +74,29 @@ public final class Messages {
     public static final String PROFILE_OPPONENT_TITLE = "Druh\u00fd hr\u00e1\u010d";
     public static final String PROFILE_NETWORK_CHANGE_ONLY_AT_START =
             "Profil v s\u00ed\u0165ov\u00e9 h\u0159e lze m\u011bnit jen p\u0159i spust\u011bn\u00ed aplikace.";
+    public static final String ONLINE_ACCOUNT_TITLE = "Squares - online \u00fa\u010det";
+    public static final String ONLINE_SIGNED_OUT =
+            "Nejste p\u0159ihl\u00e1\u0161eni. P\u0159ihl\u00e1\u0161en\u00ed se otev\u0159e v syst\u00e9mov\u00e9m prohl\u00ed\u017ee\u010di.";
+    public static final String ONLINE_LOGIN = "P\u0159ihl\u00e1sit";
+    public static final String ONLINE_LOGOUT = "Odhl\u00e1sit";
+    public static final String ONLINE_RETRY = "Zkusit znovu";
+    public static final String ONLINE_CLOSE = "Zav\u0159\u00edt";
+    public static final String ONLINE_LOADING = "Na\u010d\u00edt\u00e1m online \u00fa\u010det...";
+    public static final String ONLINE_BROWSER_WAIT =
+            "Dokon\u010dete p\u0159ihl\u00e1\u0161en\u00ed v syst\u00e9mov\u00e9m prohl\u00ed\u017ee\u010di...";
+    public static final String ONLINE_LOGGING_OUT = "Odhla\u0161uji...";
+    public static final String ONLINE_LOGGED_OUT = "Byli jste odhl\u00e1\u0161eni.";
+    public static final String ONLINE_SESSION_EXPIRED =
+            "P\u0159ihla\u0161ovac\u00ed relace vypr\u0161ela. P\u0159ihlaste se znovu.";
+    public static final String ONLINE_SESSION_RESTORE_FAILED =
+            "D\u0159\u00edve ulo\u017een\u00e9 p\u0159ihl\u00e1\u0161en\u00ed se nepoda\u0159ilo obnovit.";
+    public static final String ONLINE_ONBOARDING_REQUIRED =
+            "P\u0159ihl\u00e1\u0161en\u00ed prob\u011bhlo. Pro dokon\u010den\u00ed nastavte ve\u0159ejn\u00fd profil.";
+    public static final String ONLINE_HANDLE = "U\u017eivatelsk\u00e9 jm\u00e9no:";
+    public static final String ONLINE_DISPLAY_NAME = "Zobrazovan\u00e9 jm\u00e9no:";
+    public static final String ONLINE_CREATE_PROFILE = "Vytvo\u0159it profil";
+    public static final String ONLINE_SAVE_PROFILE = "Ulo\u017eit profil";
+    public static final String ONLINE_PROFILE_SAVING = "Ukl\u00e1d\u00e1m profil...";
     public static final String DATABASE_ERROR_TITLE = "Lok\u00e1ln\u00ed datab\u00e1ze";
     public static final String DATABASE_NEWER_SCHEMA = "Datab\u00e1ze poch\u00e1z\u00ed z nov\u011bj\u0161\u00ed verze aplikace.";
     public static final String DATABASE_INITIALIZATION_FAILED = "Inicializace lok\u00e1ln\u00ed datab\u00e1ze selhala.";
@@ -143,6 +167,10 @@ public final class Messages {
     public static String hostInfo(String address, int port, int rows, int columns) {
         return "IP: " + address + ":" + port + "\n"
                 + "Plocha: " + boardSize(rows, columns);
+    }
+
+    public static String onlineSignedIn(String displayName, String handle) {
+        return "P\u0159ihl\u00e1\u0161en jako " + displayName + " (@" + handle + ").";
     }
 
     public static String clientInfo(String host, int port, int rows, int columns) {

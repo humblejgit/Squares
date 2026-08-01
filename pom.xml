@@ -5,13 +5,14 @@
 
     <groupId>cz.humblej</groupId>
     <artifactId>squares-parent</artifactId>
-    <version>4.2.0</version>
+    <version>4.3.0</version>
     <packaging>pom</packaging>
     <name>Squares parent</name>
 
     <modules>
         <module>squares-core</module>
         <module>squares-desktop</module>
+        <module>squares-server</module>
     </modules>
 
     <licenses>
@@ -39,6 +40,21 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-nop</artifactId>
                 <version>1.7.36</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.17.2</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jsr310</artifactId>
+                <version>2.17.2</version>
+            </dependency>
+            <dependency>
+                <groupId>net.java.dev.jna</groupId>
+                <artifactId>jna-platform</artifactId>
+                <version>5.13.0</version>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>

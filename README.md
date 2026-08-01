@@ -2,14 +2,17 @@
 
 Java okenni hra pro dva hrace inspirovana hrou tecky a ctverce.
 
-Aktualni verze: **4.2**.
+Aktualni verze: **4.3.0**.
 
-## Funkce verze 4.2
+## Funkce verze 4.3.0
 
 - lokalni uzivatelske profily s vyberem, prejmenovanim a archivaci
 - obrazovka statistik dostupna pres `Hra / Statistiky` ve vsech hernich rezimech
 - mistni zebricek aktivnich i archivovanych lokalnich profilu s poctem her, vyhrami, remizami, prohrami, celkovym skore a uspesnosti vyher
 - SQLite historie dokoncene hry a transakcni outbox pripraveny pro budouci serverovou synchronizaci
+- prihlaseni online uctu pres systemovy prohlizec pomoci OIDC Authorization Code + PKCE
+- bezpecne ulozeni obnovovaci relace pomoci Windows DPAPI, automaticka obnova tokenu a odhlaseni
+- nacteni online uctu a vytvoreni nebo uprava verejneho profilu primo z menu hry
 - platformne nezavisle herni jadro oddelene od Swingu jako zaklad budouci Android verze
 - strukturovane vysledky her se shodnym ID na obou pocitacich v sitove hre
 - hra clovek vs. CPU se tremi urovnemi obtiznosti a strategii nad retezci ctvercu
@@ -52,7 +55,8 @@ run.bat
 
 ## Sestaveni
 
-Projekt je kompatibilni s Java 8.
+Desktop a herni jadro jsou kompatibilni s Java 8. Server vyzaduje Java 21;
+pro sestaveni celeho Maven reactoru je proto potreba JDK 21.
 
 ```powershell
 mvn package
@@ -64,13 +68,17 @@ jeho JAR vznikne v `squares-core\target`.
 Licencni texty pouzitych knihoven jsou ulozene v `squares-desktop\src\main\resources\META-INF\licenses`
 a pri sestaveni se automaticky vlozi do JARu.
 Lokalni data se ve Windows ukladaji do `%LOCALAPPDATA%\Squares\squares.db`.
+OIDC tokeny nejsou soucasti SQLite databaze. Desktop je uklada do souboru
+`%LOCALAPPDATA%\Squares\oidc-session.dat`, zasifrovane pomoci Windows DPAPI a
+navazane na prihlaseny Windows ucet.
 
 ## Struktura zdrojovych kodu
 
-Projekt je rozdelen do dvou Maven modulu:
+Projekt je rozdelen do tri Maven modulu:
 
 - `squares-core` - platformne nezavisle modely, herni pravidla, snapshoty, vysledky a CPU strategie
 - `squares-desktop` - Windows/Swing aplikace, SQLite persistence a soucasna sitova vrstva
+- `squares-server` - Spring Boot API, PostgreSQL schema a budouci serverova synchronizace
 
 Java kod pouziva jmenny prostor `cz.humblej.squares` a uvnitr modulu je dale
 rozdelen podle odpovednosti:
@@ -100,6 +108,103 @@ API v1 pocita s externim OpenID Connect prihlasenim, dobrovolnym propojenim
 lokalniho profilu a serveroveho hrace a idempotentnim odesilanim vysledku z
 offline outboxu. Klientem oznamene hry se nezapocitavaji do ranked zebricku;
 ten bude vyzadovat budouci serverem overovane partie.
+
+### Lokalni spusteni serveru
+
+Server, PostgreSQL a lokalni OIDC provider Keycloak lze spustit pres Docker
+Compose:
+
+```powershell
+docker compose up --build -d
+```
+
+Po nabehnuti je metadata endpoint dostupny na
+`http://localhost:8080/api/v1/meta` a health check na
+`http://localhost:8080/actuator/health`. Flyway migrace se aplikuji automaticky
+pri startu serveru. Keycloak bezi na `http://localhost:9090`; jeho lokalni
+administrace pouziva `admin` / `squares-admin`.
+
+Zivy Authorization Code + PKCE test otevre systemovy prohlizec, prijme
+loopback callback a zavola `GET /api/v1/me`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-local-oidc-login.ps1
+```
+
+Predpripraveny uzivatel je `tester` s heslem `squares-test`. Realm, testovaci
+uzivatel, admin heslo i klient `squares-smoke` jsou urcene vyhradne pro lokalni
+vyvoj a nesmi se pouzit v produkci.
+
+Heslo se zadava pouze na strance Keycloaku v systemovem prohlizeci. Desktopova
+aplikace ani Squares API heslo neobdrzi. Po uspesnem prihlaseni prohlizec vrati
+jednorazovy autorizacni kod na nahodny loopback port `127.0.0.1`; desktop jej
+vymeni pomoci PKCE za access a refresh token. Squares API nasledne odvozuje ucet
+ze stabilni dvojice OIDC `issuer` + `subject`.
+
+Autentizovane endpointy overuji bearer JWT proti OIDC provideru. Konfigurace se
+predava promennymi `SQUARES_OIDC_ISSUER`, `SQUARES_OIDC_AUDIENCE` a
+`SQUARES_OIDC_JWK_SET_URI`. Vyvojove vychozi hodnoty pocitaji s realm
+`squares` dostupnym na `http://localhost:9090`. Kontejner API pouziva pro
+stazeni podpisovych klicu interni adresu Keycloaku, ale issuer tokenu zustava
+verejna loopback adresa. Produkcni hodnoty musi smerovat na duveryhodny HTTPS
+issuer.
+
+Desktop klient nabizi prihlaseni v `Hra / Online ucet`. Ve vychozim lokalnim
+prostredi pouziva stejny Keycloak a API jako Docker Compose. Adresy lze zmenit
+systemovymi vlastnostmi `squares.oidc.issuer`, `squares.api.base-uri` a
+`squares.oidc.client-id`, nebo promennymi prostredi
+`SQUARES_DESKTOP_OIDC_ISSUER`, `SQUARES_DESKTOP_API_BASE_URI` a
+`SQUARES_DESKTOP_OIDC_CLIENT_ID`. Produkcni OIDC a API adresy musi pouzivat
+HTTPS; HTTP je povoleno pouze pro `localhost` a `127.0.0.1`.
+
+### Rucni overeni online uctu ve hre
+
+1. Spustit lokalni infrastrukturu a overit jeji stav:
+
+   ```powershell
+   docker compose up --build -d
+   docker compose ps
+   Invoke-RestMethod http://localhost:8080/actuator/health
+   ```
+
+   Health endpoint musi vratit stav `UP`.
+
+2. Spustit aktualni klient ze zdrojoveho projektu pomoci `run.bat`, zvolit
+   herni rezim a otevrit `Hra / Online ucet`.
+3. Kliknout na `Prihlasit` a v Keycloaku pouzit `tester` / `squares-test`.
+4. Po navratu do hry nastavit verejne `Uzivatelske jmeno` a `Zobrazovane
+   jmeno`. Uzivatelske jmeno je globalne jedinecne, ma 3 az 24 znaku a pouziva
+   pouze mala pismena bez diakritiky, cisla, `_` a `-`. Zobrazovane jmeno muze
+   obsahovat Unicode a nemusi byt jedinecne.
+5. Dialog znovu otevrit a overit nacteni profilu pres `GET /api/v1/me`.
+6. Hru ukoncit a znovu spustit. Relace se musi obnovit bez noveho zadani hesla.
+7. Tlacitkem `Odhlasit` se refresh token revokuje a lokalni zasifrovana relace
+   odstrani.
+
+Lokalni herni profil a online ucet jsou dve rozdilne identity. Lokalni profil
+zustava pouzitelny bez internetu; verejne uzivatelske jmeno patri online uctu na
+serveru.
+
+### Produkcni prihlaseni
+
+Lokalni ucet `tester` nahrazuje pouze budouci produkcni prihlaseni. Pro produkci
+se pocita s Keycloakem na verejne HTTPS domene a s temito moznostmi na jeho
+prihlasovaci strance:
+
+- prihlaseni pres Google,
+- prihlaseni pres Microsoft,
+- registrace noveho uctu e-mailem vcetne overeni adresy a obnovy hesla.
+
+Tyto poskytovatele a samoobsluzna registrace zatim nejsou nakonfigurovane.
+Desktop bude nadale pouzivat stejny OIDC Authorization Code + PKCE tok a nebude
+zpracovavat uzivatelska hesla.
+
+Serverove integracni testy pouzivaji docasny PostgreSQL pres Testcontainers a
+vyzaduji spusteny Docker:
+
+```powershell
+mvn -pl squares-server -am test
+```
 
 ## Licence
 
