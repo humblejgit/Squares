@@ -3,6 +3,13 @@ package cz.humblej.squares.auth;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import cz.humblej.identity.client.AuthenticationException;
+import cz.humblej.identity.client.HttpTransport;
+import cz.humblej.identity.client.OidcConfiguration;
+import cz.humblej.identity.client.TokenSet;
+import cz.humblej.identity.client.TokenStore;
+import cz.humblej.identity.desktop.OidcClient;
+import cz.humblej.identity.model.InstallationInfo;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -32,7 +40,9 @@ public class OnlineAccountServiceTest {
     private AtomicInteger tokenRequests;
     private AtomicInteger meRequests;
     private AtomicInteger profileRequests;
+    private AtomicInteger installationRequests;
     private volatile boolean rejectRefresh;
+    private volatile boolean profileMissing;
 
     @Before
     public void startServer() throws Exception {
@@ -42,6 +52,7 @@ public class OnlineAccountServiceTest {
         tokenRequests = new AtomicInteger();
         meRequests = new AtomicInteger();
         profileRequests = new AtomicInteger();
+        installationRequests = new AtomicInteger();
 
         server.createContext("/issuer/.well-known/openid-configuration", exchange ->
                 json(exchange, 200, "{"
@@ -66,8 +77,35 @@ public class OnlineAccountServiceTest {
             }
         });
         server.createContext("/api/v1/me", exchange -> {
+            if (exchange.getRequestURI().getPath().startsWith("/api/v1/me/installations/")) {
+                installationRequests.incrementAndGet();
+                String installationId = exchange.getRequestURI().getPath()
+                        .substring("/api/v1/me/installations/".length());
+                String request = read(exchange.getRequestBody());
+                if (!"PUT".equals(exchange.getRequestMethod())
+                        || !request.contains("\"platform\":\"WINDOWS\"")
+                        || !request.contains("\"appVersion\":\"4.4.0\"")) {
+                    json(exchange, 400, "{\"code\":\"invalid-request\"}");
+                    return;
+                }
+                json(exchange, 200, "{\"installationId\":\"" + installationId + "\"}");
+                return;
+            }
             if ("/api/v1/me/profile".equals(exchange.getRequestURI().getPath())) {
                 profileRequests.incrementAndGet();
+                if ("GET".equals(exchange.getRequestMethod())) {
+                    if (profileMissing) {
+                        json(exchange, 404, "{\"code\":\"not-found\"}");
+                        return;
+                    }
+                    json(exchange, 200, "{"
+                            + "\"playerId\":\"00000000-0000-0000-0000-000000000001\","
+                            + "\"handle\":\"tester\","
+                            + "\"displayName\":\"Tester\","
+                            + "\"revision\":1"
+                            + "}");
+                    return;
+                }
                 String request = read(exchange.getRequestBody());
                 if (!"PUT".equals(exchange.getRequestMethod())
                         || !"Bearer fresh-access".equals(
@@ -91,13 +129,9 @@ public class OnlineAccountServiceTest {
             } else {
                 json(exchange, 200, "{"
                         + "\"accountStatus\":\"ACTIVE\","
-                        + "\"onboardingRequired\":false,"
-                        + "\"player\":{"
                         + "\"playerId\":\"00000000-0000-0000-0000-000000000001\","
-                        + "\"handle\":\"tester\","
-                        + "\"displayName\":\"Tester\","
-                        + "\"revision\":1"
-                        + "}}");
+                        + "\"createdAt\":\"2026-07-27T12:00:00Z\""
+                        + "}");
             }
         });
         server.start();
@@ -143,6 +177,21 @@ public class OnlineAccountServiceTest {
     }
 
     @Test
+    public void treatsMissingSquaresProfileAsOnboardingRequired() throws Exception {
+        profileMissing = true;
+        MemoryTokenStore store = new MemoryTokenStore(new TokenSet(
+                "fresh-access", "refresh", null, now.plusSeconds(600)));
+        OnlineAccountService service = service(store);
+
+        OnlineAccount account = service.getMe();
+
+        assertTrue(account.onboardingRequired());
+        assertNull(account.player());
+        assertEquals(1, meRequests.get());
+        assertEquals(1, profileRequests.get());
+    }
+
+    @Test
     public void updatesProfileThroughAuthenticatedPut() throws Exception {
         MemoryTokenStore store = new MemoryTokenStore(new TokenSet(
                 "fresh-access", "refresh", null, now.plusSeconds(600)));
@@ -157,13 +206,27 @@ public class OnlineAccountServiceTest {
         assertEquals(0, tokenRequests.get());
     }
 
+    @Test
+    public void registersStableInstallationThroughAuthenticatedPut() throws Exception {
+        MemoryTokenStore store = new MemoryTokenStore(new TokenSet(
+                "fresh-access", "refresh", null, now.plusSeconds(600)));
+        OnlineAccountService service = service(store);
+        java.util.UUID installationId = java.util.UUID.randomUUID();
+
+        service.registerInstallation(new InstallationInfo(
+                installationId, "WINDOWS", "4.4.0",
+                "4.4.0", "cs-CZ"));
+
+        assertEquals(1, installationRequests.get());
+        assertEquals(0, tokenRequests.get());
+    }
+
     private OnlineAccountService service(MemoryTokenStore store) {
         Clock clock = Clock.fixed(now, ZoneOffset.UTC);
         OidcConfiguration configuration = new OidcConfiguration(
                 URI.create(base + "/issuer"),
                 URI.create(base + "/api/v1"),
-                "squares-desktop",
-                java.nio.file.Paths.get("unused"));
+                "squares-desktop");
         HttpTransport transport = new HttpTransport();
         return new OnlineAccountService(
                 configuration,

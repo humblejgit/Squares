@@ -9,7 +9,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public final class BuildInfo {
-    private static final String BUILD_ID = "4.3.0";
+    private static final String BUILD_ID = "4.4.0";
     private static final String BUILD_TIME = resolveBuildTime();
 
     private BuildInfo() {

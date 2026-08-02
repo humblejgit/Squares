@@ -1,5 +1,27 @@
 ﻿# Changelog
 
+## 4.4.0 - 2026-08-02
+
+- Zavedena centralni serverova `Player Identity`, ktera je oddelena od
+  autentizacniho uctu i Squares-specifickeho verejneho profilu.
+- Sdilena identita byla fyzicky vyclenena do modulu `humblej-identity-model`,
+  `humblej-identity-client`, `humblej-identity-desktop` a `humblej-identity-server`.
+- OIDC token lifecycle a HTTP relace jsou znovupouzitelne bez Squares UI;
+  DPAPI, systemovy prohlizec a loopback PKCE zustavaji Windows adapterem.
+- Spolecne `GET /me` vraci pouze ucet a centralni `playerId`; Squares profil ma
+  samostatne `GET/PUT /me/profile`.
+- Existujici serverova `playerId` zachovava migrace beze zmeny a pouziva ji jako
+  ID centralni identity.
+- Implementovan idempotentni endpoint
+  `PUT /api/v1/me/installations/{installationId}` pro registraci a obnovu instalace.
+- Desktop generuje jedno trvale `installationId`, uklada je do SQLite a po
+  prihlaseni je registruje s platformou, verzi aplikace/jadra a locale.
+- Do SQLite byla pridana samostatna vazba lokalniho profilu na serverove
+  `playerId`, vcetne ochrany pred prepsanim jinym online uctem.
+- Dialog `Hra / Online ucet` zobrazuje aktualni lokalni profil, Player ID,
+  Installation ID a umoznuje profil propojit nebo vedome odpojit.
+- Doplneny migrace, integracni a desktopove testy i dokumentace API.
+
 ## 4.3 - 2026-08-01
 
 - Pridan zaklad serveroveho modulu se Spring Boot, PostgreSQL migracemi a Docker Compose.

@@ -1,12 +1,18 @@
 package cz.humblej.squares.ui;
 
-import cz.humblej.squares.auth.AuthenticationException;
+import cz.humblej.identity.client.AuthenticationException;
+import cz.humblej.identity.model.InstallationInfo;
 import cz.humblej.squares.auth.OnlineAccount;
 import cz.humblej.squares.auth.OnlineAccountService;
 import cz.humblej.squares.auth.OnlinePlayer;
+import cz.humblej.squares.model.PlayerProfile;
+import cz.humblej.squares.persistence.PlayerIdentityStore;
+import cz.humblej.squares.persistence.ProfileServerLink;
+import cz.humblej.squares.persistence.StorageException;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -27,18 +33,31 @@ import java.util.concurrent.ExecutionException;
 public final class OnlineAccountDialog {
     private final JDialog dialog;
     private final OnlineAccountService service;
+    private final PlayerProfile localProfile;
+    private final PlayerIdentityStore identityStore;
+    private final InstallationInfo installation;
     private final JPanel root = new JPanel(new BorderLayout(10, 10));
 
-    private OnlineAccountDialog(JFrame parent, OnlineAccountService service) {
+    private OnlineAccountDialog(JFrame parent, OnlineAccountService service,
+                                PlayerProfile localProfile,
+                                PlayerIdentityStore identityStore,
+                                InstallationInfo installation) {
         this.service = service;
+        this.localProfile = localProfile;
+        this.identityStore = identityStore;
+        this.installation = installation;
         this.dialog = new JDialog(parent, Messages.ONLINE_ACCOUNT_TITLE, true);
         root.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.setContentPane(root);
     }
 
-    public static void show(JFrame parent, OnlineAccountService service) {
-        OnlineAccountDialog accountDialog = new OnlineAccountDialog(parent, service);
+    public static void show(JFrame parent, OnlineAccountService service,
+                            PlayerProfile localProfile,
+                            PlayerIdentityStore identityStore,
+                            InstallationInfo installation) {
+        OnlineAccountDialog accountDialog = new OnlineAccountDialog(
+                parent, service, localProfile, identityStore, installation);
         String warning = service.consumeRestorationWarning();
         if (warning != null) {
             JOptionPane.showMessageDialog(parent,
@@ -56,11 +75,15 @@ public final class OnlineAccountDialog {
     }
 
     private void loadAccount() {
-        runTask(Messages.ONLINE_LOADING, service::getMe, this::showAccount);
+        runTask(Messages.ONLINE_LOADING, this::loadRegisteredAccount, this::showAccount);
     }
 
     private void login() {
-        runTask(Messages.ONLINE_BROWSER_WAIT, service::login, this::showAccount);
+        runTask(Messages.ONLINE_BROWSER_WAIT, () -> {
+            OnlineAccount account = service.login();
+            service.registerInstallation(installation);
+            return account;
+        }, this::showAccount);
     }
 
     private void saveProfile(JTextField handleField, JTextField displayNameField) {
@@ -68,7 +91,43 @@ public final class OnlineAccountDialog {
         String displayName = displayNameField.getText().trim();
         runTask(Messages.ONLINE_PROFILE_SAVING, () -> {
             service.putProfile(handle, displayName);
-            return service.getMe();
+            return loadRegisteredAccount();
+        }, this::showAccount);
+    }
+
+    private OnlineAccount loadRegisteredAccount() throws AuthenticationException {
+        OnlineAccount account = service.getMe();
+        service.registerInstallation(installation);
+        return account;
+    }
+
+    private void linkProfile(OnlineAccount account) {
+        runTask(Messages.ONLINE_LINKING_PROFILE, () -> {
+            try {
+                identityStore.link(localProfile.id(), account.playerId(), installation.installationId());
+            } catch (StorageException exception) {
+                throw new AuthenticationException(exception.getMessage(), exception);
+            }
+            return account;
+        }, this::showAccount);
+    }
+
+    private void unlinkProfile(OnlineAccount account) {
+        int choice = JOptionPane.showConfirmDialog(dialog,
+                Messages.ONLINE_UNLINK_CONFIRM,
+                Messages.ONLINE_ACCOUNT_TITLE,
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+        runTask(Messages.ONLINE_UNLINKING_PROFILE, () -> {
+            try {
+                identityStore.unlink(localProfile.id());
+            } catch (StorageException exception) {
+                throw new AuthenticationException(exception.getMessage(), exception);
+            }
+            return account;
         }, this::showAccount);
     }
 
@@ -84,6 +143,8 @@ public final class OnlineAccountDialog {
         String message = information == null
                 ? Messages.ONLINE_SIGNED_OUT
                 : information + "\n\n" + Messages.ONLINE_SIGNED_OUT;
+        message += "\n\n" + Messages.ONLINE_LOCAL_PROFILE + " " + localProfile.displayName()
+                + "\n" + Messages.ONLINE_INSTALLATION_ID + " " + installation.installationId();
         root.add(new JLabel(toHtml(message), SwingConstants.CENTER), BorderLayout.CENTER);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -115,6 +176,28 @@ public final class OnlineAccountDialog {
         JTextField displayName = new JTextField(player == null ? "" : player.displayName(), 24);
         addFormRow(form, constraints, 0, Messages.ONLINE_HANDLE, handle);
         addFormRow(form, constraints, 1, Messages.ONLINE_DISPLAY_NAME, displayName);
+        addFormRow(form, constraints, 2, Messages.ONLINE_LOCAL_PROFILE,
+                new JLabel(localProfile.displayName()));
+        addFormRow(form, constraints, 3, Messages.ONLINE_PLAYER_ID,
+                new JLabel(account.playerId().toString()));
+        addFormRow(form, constraints, 4, Messages.ONLINE_INSTALLATION_ID,
+                new JLabel(installation.installationId().toString()));
+
+        ProfileServerLink link;
+        try {
+            link = identityStore.findLink(localProfile.id());
+        } catch (StorageException exception) {
+            JOptionPane.showMessageDialog(dialog, exception.getMessage(),
+                    Messages.ONLINE_ACCOUNT_TITLE, JOptionPane.ERROR_MESSAGE);
+            link = null;
+        }
+        boolean linkedHere = link != null && link.playerId().equals(account.playerId());
+        String linkStatus = link == null
+                ? Messages.ONLINE_PROFILE_NOT_LINKED
+                : linkedHere
+                ? Messages.ONLINE_PROFILE_LINKED
+                : Messages.ONLINE_PROFILE_LINKED_ELSEWHERE;
+        addFormRow(form, constraints, 5, "", new JLabel(linkStatus));
         root.add(form, BorderLayout.CENTER);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -122,10 +205,18 @@ public final class OnlineAccountDialog {
                 ? Messages.ONLINE_CREATE_PROFILE : Messages.ONLINE_SAVE_PROFILE);
         JButton logout = new JButton(Messages.ONLINE_LOGOUT);
         JButton close = new JButton(Messages.ONLINE_CLOSE);
+        JButton linkButton = new JButton(link == null
+                ? Messages.ONLINE_LINK_PROFILE : Messages.ONLINE_UNLINK_PROFILE);
         save.addActionListener(event -> saveProfile(handle, displayName));
+        if (link == null) {
+            linkButton.addActionListener(event -> linkProfile(account));
+        } else {
+            linkButton.addActionListener(event -> unlinkProfile(account));
+        }
         logout.addActionListener(event -> logout());
         close.addActionListener(event -> dialog.dispose());
         buttons.add(save);
+        buttons.add(linkButton);
         buttons.add(logout);
         buttons.add(close);
         root.add(buttons, BorderLayout.SOUTH);
@@ -200,7 +291,7 @@ public final class OnlineAccountDialog {
     }
 
     private static void addFormRow(JPanel form, GridBagConstraints constraints, int row,
-                                   String label, JTextField field) {
+                                   String label, JComponent field) {
         constraints.gridx = 0;
         constraints.gridy = row;
         constraints.weightx = 0;

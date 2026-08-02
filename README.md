@@ -2,9 +2,17 @@
 
 Java okenni hra pro dva hrace inspirovana hrou tecky a ctverce.
 
-Aktualni verze: **4.3.0**.
+Aktualni verze: **4.4.0**.
 
-## Funkce verze 4.3.0
+## Funkce verze 4.4.0
+
+- centralni serverova Player Identity oddelena od uctu a Squares profilu jako zaklad pro budouci vice her
+- znovupouzitelna identita vyclenena do ctyr Maven modulu bez zavislosti na Swingu a hernim modelu Squares
+- trvale nahodne `installationId`, ktere se vytvori jednou v lokalni SQLite databazi
+- idempotentni registrace a aktualizace instalace pres `PUT /api/v1/me/installations/{installationId}`
+- dobrovolne propojeni aktualniho lokalniho profilu s online Player Identity a bezpecne odpojeni
+- ochrana proti prepsani vazby lokalniho profilu jinym online uctem
+- zobrazeni lokalniho profilu, Player ID, Installation ID a stavu propojeni v dialogu online uctu
 
 - lokalni uzivatelske profily s vyberem, prejmenovanim a archivaci
 - obrazovka statistik dostupna pres `Hra / Statistiky` ve vsech hernich rezimech
@@ -55,7 +63,8 @@ run.bat
 
 ## Sestaveni
 
-Desktop a herni jadro jsou kompatibilni s Java 8. Server vyzaduje Java 21;
+Desktop, herni jadro a klientské identity moduly jsou kompatibilni s Java 8.
+Serverove moduly vyzaduji Java 21;
 pro sestaveni celeho Maven reactoru je proto potreba JDK 21.
 
 ```powershell
@@ -68,20 +77,26 @@ jeho JAR vznikne v `squares-core\target`.
 Licencni texty pouzitych knihoven jsou ulozene v `squares-desktop\src\main\resources\META-INF\licenses`
 a pri sestaveni se automaticky vlozi do JARu.
 Lokalni data se ve Windows ukladaji do `%LOCALAPPDATA%\Squares\squares.db`.
+SQLite uchovava take jedno trvale `installationId` a dobrovolnou vazbu lokalniho
+profilu na serverove `playerId`; lokalni profil zustava plne pouzitelny offline.
 OIDC tokeny nejsou soucasti SQLite databaze. Desktop je uklada do souboru
 `%LOCALAPPDATA%\Squares\oidc-session.dat`, zasifrovane pomoci Windows DPAPI a
 navazane na prihlaseny Windows ucet.
 
 ## Struktura zdrojovych kodu
 
-Projekt je rozdelen do tri Maven modulu:
+Projekt je rozdelen do sedmi Maven modulu:
 
 - `squares-core` - platformne nezavisle modely, herni pravidla, snapshoty, vysledky a CPU strategie
-- `squares-desktop` - Windows/Swing aplikace, SQLite persistence a soucasna sitova vrstva
-- `squares-server` - Spring Boot API, PostgreSQL schema a budouci serverova synchronizace
+- `humblej-identity-model` - Java 8 hodnotove typy identity bez zavislosti na UI nebo Springu
+- `humblej-identity-client` - OIDC token lifecycle, obnoveni relace a autentizovany HTTP transport
+- `humblej-identity-desktop` - Windows DPAPI, systemovy prohlizec a loopback Authorization Code + PKCE
+- `humblej-identity-server` - ucty, OIDC identity, centralni Player Identity, instalace a Spring Security/JDBC
+- `squares-desktop` - Windows/Swing UI, Squares REST mapovani, SQLite persistence a sitova vrstva
+- `squares-server` - Squares profil, herni API a serverova synchronizace
 
-Java kod pouziva jmenny prostor `cz.humblej.squares` a uvnitr modulu je dale
-rozdelen podle odpovednosti:
+Sdilena identita pouziva neutralni jmenny prostor `cz.humblej.identity`.
+Herni kod pouziva `cz.humblej.squares` a uvnitr modulu je dale rozdelen podle odpovednosti:
 
 - `app` - spusteni a koordinace aplikace
 - `model` - profily a vysledky her
@@ -176,14 +191,20 @@ HTTPS; HTTP je povoleno pouze pro `localhost` a `127.0.0.1`.
    jmeno`. Uzivatelske jmeno je globalne jedinecne, ma 3 az 24 znaku a pouziva
    pouze mala pismena bez diakritiky, cisla, `_` a `-`. Zobrazovane jmeno muze
    obsahovat Unicode a nemusi byt jedinecne.
-5. Dialog znovu otevrit a overit nacteni profilu pres `GET /api/v1/me`.
-6. Hru ukoncit a znovu spustit. Relace se musi obnovit bez noveho zadani hesla.
-7. Tlacitkem `Odhlasit` se refresh token revokuje a lokalni zasifrovana relace
+5. Tlacitkem `Propojit profil` navazat aktualni lokalni profil na zobrazene
+   Player ID. Po prihlaseni jineho uctu musi dialog odmitnout prepsani vazby,
+   dokud uzivatel puvodni vazbu vedome neodpoji.
+6. Dialog znovu otevrit a overit nacteni profilu pres `GET /api/v1/me` a obnovu
+   instalace pres `PUT /api/v1/me/installations/{installationId}`.
+7. Hru ukoncit a znovu spustit. Relace se musi obnovit bez noveho zadani hesla
+   a Installation ID se nesmi zmenit.
+8. Tlacitkem `Odhlasit` se refresh token revokuje a lokalni zasifrovana relace
    odstrani.
 
-Lokalni herni profil a online ucet jsou dve rozdilne identity. Lokalni profil
-zustava pouzitelny bez internetu; verejne uzivatelske jmeno patri online uctu na
-serveru.
+Lokalni herni profil a online Player Identity zustavaji dve rozdilne identity,
+ale v dialogu je lze dobrovolne propojit. Lokalni profil zustava pouzitelny bez
+internetu. Existujici vazbu nelze prepsat po prihlaseni jineho online uctu;
+uzivatel ji musi nejprve vedome odpojit.
 
 ### Produkcni prihlaseni
 

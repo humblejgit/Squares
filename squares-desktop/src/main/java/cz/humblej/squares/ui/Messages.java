@@ -97,6 +97,19 @@ public final class Messages {
     public static final String ONLINE_CREATE_PROFILE = "Vytvo\u0159it profil";
     public static final String ONLINE_SAVE_PROFILE = "Ulo\u017eit profil";
     public static final String ONLINE_PROFILE_SAVING = "Ukl\u00e1d\u00e1m profil...";
+    public static final String ONLINE_LOCAL_PROFILE = "M\u00edstn\u00ed profil:";
+    public static final String ONLINE_PLAYER_ID = "Player ID:";
+    public static final String ONLINE_INSTALLATION_ID = "Installation ID:";
+    public static final String ONLINE_PROFILE_NOT_LINKED = "M\u00edstn\u00ed profil nen\u00ed propojen.";
+    public static final String ONLINE_PROFILE_LINKED = "M\u00edstn\u00ed profil je propojen s t\u00edmto online \u00fa\u010dtem.";
+    public static final String ONLINE_PROFILE_LINKED_ELSEWHERE =
+            "M\u00edstn\u00ed profil je propojen s jin\u00fdm online \u00fa\u010dtem.";
+    public static final String ONLINE_LINK_PROFILE = "Propojit profil";
+    public static final String ONLINE_UNLINK_PROFILE = "Odpojit profil";
+    public static final String ONLINE_LINKING_PROFILE = "Propojuji profil...";
+    public static final String ONLINE_UNLINKING_PROFILE = "Odpojuji profil...";
+    public static final String ONLINE_UNLINK_CONFIRM =
+            "Opravdu chcete odpojit aktu\u00e1ln\u00ed m\u00edstn\u00ed profil od online identity?";
     public static final String DATABASE_ERROR_TITLE = "Lok\u00e1ln\u00ed datab\u00e1ze";
     public static final String DATABASE_NEWER_SCHEMA = "Datab\u00e1ze poch\u00e1z\u00ed z nov\u011bj\u0161\u00ed verze aplikace.";
     public static final String DATABASE_INITIALIZATION_FAILED = "Inicializace lok\u00e1ln\u00ed datab\u00e1ze selhala.";
@@ -113,6 +126,12 @@ public final class Messages {
     public static final String PROFILE_LOAD_FAILED = "Na\u010dten\u00ed profilu selhalo.";
     public static final String PROFILE_DUPLICATE_NAME = "Profil s t\u00edmto jm\u00e9nem ji\u017e existuje.";
     public static final String PROFILE_SAVE_FAILED = "Ulo\u017een\u00ed profilu selhalo.";
+    public static final String INSTALLATION_ID_FAILED = "Identitu instalace se nepoda\u0159ilo na\u010d\u00edst nebo vytvo\u0159it.";
+    public static final String PROFILE_LINK_LOAD_FAILED = "Propojen\u00ed profilu se nepoda\u0159ilo na\u010d\u00edst.";
+    public static final String PROFILE_LINK_SAVE_FAILED = "Propojen\u00ed profilu se nepoda\u0159ilo ulo\u017eit.";
+    public static final String PROFILE_UNLINK_FAILED = "Propojen\u00ed profilu se nepoda\u0159ilo odstranit.";
+    public static final String PROFILE_LINK_DIFFERENT_ACCOUNT =
+            "Tento m\u00edstn\u00ed profil je ji\u017e propojen s jin\u00fdm online \u00fa\u010dtem. Nejprve jej odpojte.";
     public static final String STATISTICS_TITLE = "Statistiky a m\u00edstn\u00ed \u017eeb\u0159\u00ed\u010dek";
     public static final String STATISTICS_LOCAL_LEADERBOARD = "M\u00edstn\u00ed \u017eeb\u0159\u00ed\u010dek";
     public static final String STATISTICS_CURRENT_PROFILE_MISSING =

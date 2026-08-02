@@ -5,7 +5,6 @@ import java.util.UUID;
 
 record PlayerRecord(
         UUID playerId,
-        UUID accountId,
         String handle,
         String displayName,
         long revision,

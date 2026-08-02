@@ -6,7 +6,7 @@
     <parent>
         <groupId>cz.humblej</groupId>
         <artifactId>squares-parent</artifactId>
-        <version>4.3.0</version>
+        <version>4.4.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -34,6 +34,11 @@
         <dependency>
             <groupId>cz.humblej</groupId>
             <artifactId>squares-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cz.humblej</groupId>
+            <artifactId>humblej-identity-server</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

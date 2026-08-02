@@ -3,86 +3,89 @@ package cz.humblej.squares.auth;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import cz.humblej.identity.client.AuthenticatedSession;
+import cz.humblej.identity.client.AuthenticationException;
+import cz.humblej.identity.client.HttpTransport;
+import cz.humblej.identity.client.OidcConfiguration;
+import cz.humblej.identity.client.TokenStore;
+import cz.humblej.identity.desktop.DpapiTokenStore;
+import cz.humblej.identity.desktop.OidcClient;
+import cz.humblej.identity.model.InstallationInfo;
+
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Clock;
+import java.util.UUID;
 
+/** Squares-specific mapping built on the reusable authenticated identity session. */
 public final class OnlineAccountService {
-    private static final long REFRESH_SKEW_SECONDS = 60;
-
-    private final OidcConfiguration configuration;
-    private final OidcClient oidcClient;
-    private final TokenStore tokenStore;
-    private final HttpTransport transport;
+    private final AuthenticatedSession session;
     private final ObjectMapper mapper;
-    private final Clock clock;
 
-    private TokenSet tokens;
-    private String restorationWarning;
-
-    OnlineAccountService(OidcConfiguration configuration, OidcClient oidcClient,
-                         TokenStore tokenStore, HttpTransport transport,
-                         ObjectMapper mapper, Clock clock) {
-        this.configuration = configuration;
-        this.oidcClient = oidcClient;
-        this.tokenStore = tokenStore;
-        this.transport = transport;
+    OnlineAccountService(
+            OidcConfiguration configuration,
+            OidcClient oidcClient,
+            TokenStore tokenStore,
+            HttpTransport transport,
+            ObjectMapper mapper,
+            Clock clock) {
         this.mapper = mapper;
-        this.clock = clock;
-        try {
-            this.tokens = tokenStore.load();
-        } catch (IOException exception) {
-            this.restorationWarning = exception.getMessage();
-        }
+        this.session = new AuthenticatedSession(
+                configuration, oidcClient, tokenStore, transport, mapper, clock);
     }
 
     public static OnlineAccountService systemDefault() {
-        OidcConfiguration configuration = OidcConfiguration.systemDefault();
+        String localAppData = System.getenv("LOCALAPPDATA");
+        Path dataDirectory = localAppData == null || localAppData.trim().isEmpty()
+                ? Paths.get(System.getProperty("user.home"), ".squares")
+                : Paths.get(localAppData, "Squares");
+        OidcConfiguration configuration = new OidcConfiguration(
+                URI.create(setting("squares.oidc.issuer", "SQUARES_DESKTOP_OIDC_ISSUER",
+                        "http://localhost:9090/realms/squares")),
+                URI.create(setting("squares.api.base-uri", "SQUARES_DESKTOP_API_BASE_URI",
+                        "http://localhost:8080/api/v1")),
+                setting("squares.oidc.client-id", "SQUARES_DESKTOP_OIDC_CLIENT_ID",
+                        "squares-desktop"));
         Clock clock = Clock.systemUTC();
         ObjectMapper mapper = new ObjectMapper();
         return new OnlineAccountService(
                 configuration,
                 new OidcClient(configuration, clock),
-                new DpapiTokenStore(configuration.tokenPath()),
+                new DpapiTokenStore(dataDirectory.resolve("oidc-session.dat")),
                 new HttpTransport(),
                 mapper,
                 clock);
     }
 
-    public synchronized boolean hasSession() {
-        return tokens != null;
+    public boolean hasSession() {
+        return session.hasSession();
     }
 
-    public synchronized String consumeRestorationWarning() {
-        String warning = restorationWarning;
-        restorationWarning = null;
-        return warning;
+    public String consumeRestorationWarning() {
+        return session.consumeRestorationWarning();
     }
 
     public OnlineAccount login() throws AuthenticationException {
-        TokenSet newTokens = oidcClient.login();
-        synchronized (this) {
-            saveTokens(newTokens);
-        }
-        try {
-            return getMe();
-        } catch (AuthenticationException exception) {
-            if (exception.sessionExpired()) {
-                clearSession();
-            }
-            throw exception;
-        }
+        session.login();
+        return getMe();
     }
 
     public OnlineAccount getMe() throws AuthenticationException {
-        HttpTransport.Response response = authorizedRequest("GET", "/me", null, false);
-        return parseAccount(response);
+        HttpTransport.Response response = session.get("/me");
+        HttpTransport.Response profileResponse = session.get("/me/profile", true);
+        OnlinePlayer player = profileResponse.status() == 404
+                ? null : parsePlayer(profileResponse.body());
+        return parseAccount(response, player);
     }
 
-    public OnlinePlayer putProfile(String handle, String displayName) throws AuthenticationException {
+    public OnlinePlayer putProfile(String handle, String displayName)
+            throws AuthenticationException {
         if (handle == null || !handle.matches("^[a-z0-9][a-z0-9_-]{2,23}$")) {
             throw new AuthenticationException(
-                    "Uživatelské jméno musí mít 3–24 znaků, začínat písmenem nebo číslem a obsahovat jen a–z, 0–9, _ nebo -.");
+                    "Uživatelské jméno musí mít 3–24 znaků, začínat písmenem nebo číslem "
+                            + "a obsahovat jen a–z, 0–9, _ nebo -.");
         }
         String normalizedName = displayName == null ? "" : displayName.trim();
         if (normalizedName.isEmpty() || normalizedName.length() > 40) {
@@ -96,108 +99,59 @@ public final class OnlineAccountService {
                     .put("displayName", normalizedName)
                     .toString();
         } catch (RuntimeException exception) {
-            throw new AuthenticationException("Profil se nepodařilo připravit k odeslání.", exception);
+            throw new AuthenticationException(
+                    "Profil se nepodařilo připravit k odeslání.", exception);
         }
 
-        HttpTransport.Response response = authorizedRequest("PUT", "/me/profile", body, false);
-        return parsePlayer(response.body());
+        return parsePlayer(session.putJson("/me/profile", body).body());
+    }
+
+    public void registerInstallation(InstallationInfo installation)
+            throws AuthenticationException {
+        String body;
+        try {
+            body = mapper.createObjectNode()
+                    .put("platform", installation.platform())
+                    .put("appVersion", installation.appVersion())
+                    .put("coreVersion", installation.coreVersion())
+                    .put("locale", installation.locale())
+                    .toString();
+        } catch (RuntimeException exception) {
+            throw new AuthenticationException(
+                    "Registraci instalace se nepodařilo připravit.", exception);
+        }
+
+        HttpTransport.Response response = session.putJson(
+                "/me/installations/" + installation.installationId(), body);
+        try {
+            JsonNode json = mapper.readTree(response.body());
+            UUID returned = UUID.fromString(requiredTextUnchecked(json, "installationId"));
+            if (!installation.installationId().equals(returned)) {
+                throw new IllegalArgumentException("Installation ID mismatch");
+            }
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new AuthenticationException(
+                    "Squares server vrátil neplatnou registraci instalace.", exception);
+        }
     }
 
     public void logout() {
-        TokenSet current;
-        synchronized (this) {
-            current = tokens;
-            tokens = null;
-        }
-        oidcClient.revoke(current);
-        try {
-            tokenStore.clear();
-        } catch (IOException ignored) {
-            // The in-memory session is already gone; a future refresh will be rejected by revocation.
-        }
+        session.logout();
     }
 
-    private HttpTransport.Response authorizedRequest(String method, String path, String json,
-                                                     boolean alreadyRetried)
+    private OnlineAccount parseAccount(
+            HttpTransport.Response response, OnlinePlayer player)
             throws AuthenticationException {
-        TokenSet usable = usableTokens(false);
-        HttpTransport.Response response;
-        try {
-            if (!OidcConfiguration.isSecureOrLoopback(configuration.apiBaseUri())) {
-                throw new AuthenticationException(
-                        "Squares API musí používat HTTPS (mimo lokální vývoj).");
-            }
-            URI uri = URI.create(configuration.apiBaseUri().toString() + path);
-            response = "PUT".equals(method)
-                    ? transport.putJson(uri, json, usable.getAccessToken())
-                    : transport.get(uri, usable.getAccessToken());
-        } catch (IOException exception) {
-            throw new AuthenticationException("Squares server není dostupný.", exception);
-        }
-
-        if (response.status() == 401 && !alreadyRetried) {
-            usableTokens(true);
-            return authorizedRequest(method, path, json, true);
-        }
-        if (response.status() < 200 || response.status() >= 300) {
-            throw apiError(response);
-        }
-        return response;
-    }
-
-    private synchronized TokenSet usableTokens(boolean forceRefresh) throws AuthenticationException {
-        if (tokens == null) {
-            throw new AuthenticationException("Nejste přihlášeni.", null, true);
-        }
-        if (!forceRefresh && !tokens.expiresWithin(clock, REFRESH_SKEW_SECONDS)) {
-            return tokens;
-        }
-
-        try {
-            TokenSet refreshed = oidcClient.refresh(tokens);
-            saveTokens(refreshed);
-            return refreshed;
-        } catch (AuthenticationException exception) {
-            if (exception.sessionExpired()) {
-                clearSession();
-            }
-            throw exception;
-        }
-    }
-
-    private void saveTokens(TokenSet newTokens) throws AuthenticationException {
-        try {
-            tokenStore.save(newTokens);
-            tokens = newTokens;
-        } catch (IOException exception) {
-            tokens = null;
-            oidcClient.revoke(newTokens);
-            throw new AuthenticationException(
-                    "Přihlášení se nepodařilo bezpečně uložit. Relace byla ukončena.", exception);
-        }
-    }
-
-    private synchronized void clearSession() {
-        tokens = null;
-        try {
-            tokenStore.clear();
-        } catch (IOException ignored) {
-            // A stale encrypted file cannot authorize requests without a successful load.
-        }
-    }
-
-    private OnlineAccount parseAccount(HttpTransport.Response response) throws AuthenticationException {
         try {
             JsonNode json = mapper.readTree(response.body());
-            JsonNode playerNode = json.get("player");
-            OnlinePlayer player = playerNode == null || playerNode.isNull()
-                    ? null : parsePlayer(playerNode);
             return new OnlineAccount(
                     requiredText(json, "accountStatus"),
-                    json.path("onboardingRequired").asBoolean(),
+                    UUID.fromString(requiredText(json, "playerId")),
+                    player == null,
                     player);
         } catch (IOException | IllegalArgumentException exception) {
-            throw new AuthenticationException("Squares server vrátil neplatná data účtu.", exception);
+            throw new AuthenticationException(
+                    "Squares server vrátil neplatná data účtu.", exception);
         }
     }
 
@@ -205,7 +159,8 @@ public final class OnlineAccountService {
         try {
             return parsePlayer(mapper.readTree(body));
         } catch (IOException exception) {
-            throw new AuthenticationException("Squares server vrátil neplatná data profilu.", exception);
+            throw new AuthenticationException(
+                    "Squares server vrátil neplatná data profilu.", exception);
         }
     }
 
@@ -217,31 +172,12 @@ public final class OnlineAccountService {
                 json.path("revision").asLong());
     }
 
-    private AuthenticationException apiError(HttpTransport.Response response) {
-        String detail = null;
-        String code = null;
-        try {
-            JsonNode problem = mapper.readTree(response.body());
-            detail = text(problem, "detail");
-            code = text(problem, "code");
-        } catch (IOException ignored) {
-            // Fall back to the HTTP status below.
-        }
-        StringBuilder message = new StringBuilder("Squares server vrátil HTTP ")
-                .append(response.status());
-        if (detail != null && !detail.trim().isEmpty()) {
-            message.append(": ").append(detail);
-        }
-        if (code != null && !code.trim().isEmpty()) {
-            message.append(" (").append(code).append(')');
-        }
-        return new AuthenticationException(message.toString() + ".");
-    }
-
-    private static String requiredText(JsonNode json, String field) throws AuthenticationException {
+    private static String requiredText(JsonNode json, String field)
+            throws AuthenticationException {
         String value = text(json, field);
         if (value == null || value.trim().isEmpty()) {
-            throw new AuthenticationException("Odpověď serveru neobsahuje pole " + field + ".");
+            throw new AuthenticationException(
+                    "Odpověď serveru neobsahuje pole " + field + ".");
         }
         return value;
     }
@@ -257,5 +193,13 @@ public final class OnlineAccountService {
     private static String text(JsonNode json, String field) {
         JsonNode value = json.get(field);
         return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private static String setting(String property, String environment, String defaultValue) {
+        String value = System.getProperty(property);
+        if (value == null || value.trim().isEmpty()) {
+            value = System.getenv(environment);
+        }
+        return value == null || value.trim().isEmpty() ? defaultValue : value.trim();
     }
 }

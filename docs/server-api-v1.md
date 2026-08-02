@@ -1,6 +1,6 @@
 # Squares server API v1 a serverove identity
 
-Stav: navrh pro implementaci
+Stav: identita uctu, Player Identity, verejny profil a registrace instalace implementovany
 
 Tento dokument urcuje hranici mezi Windows klientem, budoucim Android klientem
 a serverem. Stavajici lokalni profily zustavaji plne funkcni bez internetu.
@@ -46,13 +46,14 @@ Relevantni standardy:
 | --- | --- | --- | --- |
 | `account_id` | server | soukroma | ucet, blokace, audit, vlastnictvi dat |
 | OIDC `issuer` + `subject` | identity provider | soukroma | stabilni vazba prihlaseni na ucet |
-| `player_id` | server | verejna | hrac ve hre, statistiky a zebricek |
+| `player_id` | server | verejna | centralni Player Identity napric hrami |
 | `local_profile_id` | klient | pouze zarizeni | stavajici offline profil v SQLite |
 | `installation_id` | klient | ucet a server | rozliseni instalace a diagnostika; nikdy autentizace |
 
-`account_id` a `player_id` jsou serverem generovana UUID. Jejich oddeleni brani
-tomu, aby verejne herni API odhalovalo interni identitu uctu, a umoznuje budouci
-rozsireni na vice hernich profilu pod jednim uctem.
+`account_id` a `player_id` jsou serverem generovana UUID. `player_id` vznikne pri
+prvnim autentizovanem pozadavku nezavisle na Squares profilu. Je proto centralni
+Player Identity, na kterou mohou budouci hry navazat vlastni verejne profily,
+aniz by herni API odhalovalo interni identitu uctu.
 
 ### 2.2 Verejny profil
 
@@ -74,8 +75,9 @@ nemusi byt unikatni.
 3. Server overi podpis, `iss`, `aud`, `exp` a typ tokenu.
 4. Server vyhleda `account_id` podle unikatni dvojice (`issuer`, `subject`).
 5. Pri prvnim platnem tokenu server vytvori ucet bez verejneho profilu.
-6. `GET /me` vrati `onboardingRequired: true`.
-7. Klient vytvori profil pres `PUT /me/profile` a zaregistruje instalaci.
+6. `GET /me` vrati stav uctu a centralni `playerId`.
+7. `GET /me/profile` vrati `404`, dokud Squares profil neexistuje.
+8. Klient vytvori profil pres `PUT /me/profile` a zaregistruje instalaci.
 
 Pristupove a obnovovaci tokeny se neukladaji do databaze `squares.db` v
 otevrenem tvaru. Android pouzije zabezpecene uloziste vazane na Keystore;
@@ -90,9 +92,8 @@ vyznamu stavajiciho `profiles.id`:
 profile_server_links
   local_profile_id  -> profiles.id
   server_player_id
-  oidc_issuer
+  installation_id
   linked_at
-  last_synced_at
 ```
 
 Jeden lokalni profil muze byt propojen nejvyse s jednim serverovym hracem.
@@ -123,7 +124,8 @@ opravneni. Autorizaci vzdy urcuje access token.
 
 ### Autentizovane operace
 
-- `GET /me` - stav uctu a vlastni hracsky profil.
+- `GET /me` - stav uctu a centralni Player Identity bez herne specifickych dat.
+- `GET /me/profile` - vlastni Squares profil, nebo `404`, pokud jeste neexistuje.
 - `PUT /me/profile` - idempotentni vytvoreni nebo uplna aktualizace profilu.
 - `PUT /me/installations/{installationId}` - registrace/obnova instalace.
 - `PUT /me/game-submissions/{gameId}` - idempotentni odeslani vysledku.
@@ -197,10 +199,15 @@ Backend ma pouzit PostgreSQL. Minimalni tabulky:
 Jeden ucet muze byt v budoucnu propojen s vice identity providery, ale propojeni
 vyzaduje znovuovereni obou identit.
 
-### `players`
+### `player_identities`
 
 - `player_id uuid primary key`
 - `account_id uuid unique references accounts`
+- `created_at`, `updated_at`
+
+### `players` (Squares profil)
+
+- `player_id uuid primary key references player_identities`
 - `handle`, `normalized_handle unique`
 - `display_name`
 - `revision`, `created_at`, `updated_at`

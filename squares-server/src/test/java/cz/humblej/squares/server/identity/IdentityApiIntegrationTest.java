@@ -57,9 +57,9 @@ class IdentityApiIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("squares.security.oidc.issuer", () -> ISSUER);
-        registry.add("squares.security.oidc.audience", () -> "squares-api");
-        registry.add("squares.security.oidc.jwk-set-uri", () -> "https://identity.squares.test/jwks");
+        registry.add("humblej.identity.oidc.issuer", () -> ISSUER);
+        registry.add("humblej.identity.oidc.audience", () -> "squares-api");
+        registry.add("humblej.identity.oidc.jwk-set-uri", () -> "https://identity.squares.test/jwks");
     }
 
     @Autowired
@@ -93,14 +93,39 @@ class IdentityApiIntegrationTest {
         mockMvc.perform(get("/api/v1/me").with(identity(subject)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accountStatus").value("ACTIVE"))
-                .andExpect(jsonPath("$.onboardingRequired").value(true))
+                .andExpect(jsonPath("$.playerId").isNotEmpty())
+                .andExpect(jsonPath("$.onboardingRequired").doesNotExist())
                 .andExpect(jsonPath("$.player").doesNotExist())
                 .andExpect(jsonPath("$.createdAt").isNotEmpty());
+
+        mockMvc.perform(get("/api/v1/me/profile").with(identity(subject)))
+                .andExpect(status().isNotFound());
 
         assertEquals(1, count("""
                 SELECT count(*)
                 FROM account_identities
                 WHERE issuer = ? AND subject = ?
+                """, ISSUER, subject));
+        assertEquals(1, count("""
+                SELECT count(*)
+                FROM player_identities pi
+                JOIN account_identities ai ON ai.account_id = pi.account_id
+                WHERE ai.issuer = ? AND ai.subject = ?
+                """, ISSUER, subject));
+    }
+
+    @Test
+    void profileEndpointCanProvisionIdentityDirectly() throws Exception {
+        String subject = unique("profile-first");
+
+        mockMvc.perform(get("/api/v1/me/profile").with(identity(subject)))
+                .andExpect(status().isNotFound());
+
+        assertEquals(1, count("""
+                SELECT count(*)
+                FROM player_identities pi
+                JOIN account_identities ai ON ai.account_id = pi.account_id
+                WHERE ai.issuer = ? AND ai.subject = ?
                 """, ISSUER, subject));
     }
 
@@ -169,10 +194,9 @@ class IdentityApiIntegrationTest {
                 .andExpect(header().string("ETag", "\"1\""))
                 .andExpect(jsonPath("$.revision").value(1));
 
-        mockMvc.perform(get("/api/v1/me").with(identity(subject)))
+        mockMvc.perform(get("/api/v1/me/profile").with(identity(subject)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.onboardingRequired").value(false))
-                .andExpect(jsonPath("$.player.handle").value(handle));
+                .andExpect(jsonPath("$.handle").value(handle));
     }
 
     @Test
@@ -202,6 +226,71 @@ class IdentityApiIntegrationTest {
                 FROM account_identities
                 WHERE issuer = ? AND subject = ?
                 """, ISSUER, secondSubject));
+    }
+
+    @Test
+    void createsAndUpdatesInstallationIdempotently() throws Exception {
+        String subject = unique("installation");
+        UUID installationId = UUID.randomUUID();
+        String initial = """
+                {"platform":"WINDOWS","appVersion":"4.4.0",
+                 "coreVersion":"4.4.0","locale":"cs-CZ"}
+                """;
+
+        mockMvc.perform(put("/api/v1/me/installations/{installationId}", installationId)
+                        .with(identity(subject))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(initial))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location",
+                        "/api/v1/me/installations/" + installationId))
+                .andExpect(jsonPath("$.installationId").value(installationId.toString()))
+                .andExpect(jsonPath("$.platform").value("WINDOWS"))
+                .andExpect(jsonPath("$.appVersion").value("4.4.0"));
+
+        String update = """
+                {"platform":"WINDOWS","appVersion":"4.4.1",
+                 "coreVersion":"4.4.0","locale":"en-US"}
+                """;
+        mockMvc.perform(put("/api/v1/me/installations/{installationId}", installationId)
+                        .with(identity(subject))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(update))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.installationId").value(installationId.toString()))
+                .andExpect(jsonPath("$.appVersion").value("4.4.1"))
+                .andExpect(jsonPath("$.locale").value("en-US"));
+
+        assertEquals(1, count("SELECT count(*) FROM installations WHERE installation_id = ?",
+                installationId));
+        assertEquals(1, count("""
+                SELECT count(*)
+                FROM player_identities pi
+                JOIN account_identities ai ON ai.account_id = pi.account_id
+                WHERE ai.issuer = ? AND ai.subject = ?
+                """, ISSUER, subject));
+    }
+
+    @Test
+    void rejectsInvalidInstallationMetadata() throws Exception {
+        String subject = unique("invalid-installation");
+        UUID installationId = UUID.randomUUID();
+        String invalid = """
+                {"platform":"LINUX","appVersion":"snapshot",
+                 "coreVersion":"4.4","locale":"x"}
+                """;
+
+        mockMvc.perform(put("/api/v1/me/installations/{installationId}", installationId)
+                        .with(identity(subject))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalid))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation-failed"))
+                .andExpect(jsonPath("$.violations").isArray());
+
+        assertEquals(0, count(
+                "SELECT count(*) FROM installations WHERE installation_id = ?",
+                installationId));
     }
 
     private RequestPostProcessor identity(String subject) {

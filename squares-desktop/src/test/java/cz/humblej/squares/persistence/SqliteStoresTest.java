@@ -4,6 +4,7 @@ import cz.humblej.squares.model.GameResult;
 import cz.humblej.squares.model.LocalProfileStatistics;
 import cz.humblej.squares.model.PlayerProfile;
 import cz.humblej.squares.model.PlayerResult;
+import cz.humblej.squares.ui.Messages;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -11,6 +12,10 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.time.Instant;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.List;
 import java.util.UUID;
 
@@ -55,6 +60,58 @@ public class SqliteStoresTest {
         ProfileStore store = new SqliteProfileStore(database);
         store.create("Jana");
         store.create("  JANA  ");
+    }
+
+    @Test
+    public void installationIdIsStableAndProfileLinkRejectsAnotherPlayer() throws Exception {
+        ProfileStore profiles = new SqliteProfileStore(database);
+        PlayerProfile profile = profiles.create("Jana");
+        PlayerIdentityStore identities = new SqlitePlayerIdentityStore(database);
+        UUID installationId = identities.getOrCreateInstallationId();
+        UUID playerId = UUID.randomUUID();
+
+        assertEquals(installationId, identities.getOrCreateInstallationId());
+        ProfileServerLink link = identities.link(profile.id(), playerId, installationId);
+        assertEquals(playerId, link.playerId());
+        assertEquals(playerId, identities.findLink(profile.id()).playerId());
+        ProfileServerLink repeated = identities.link(profile.id(), playerId, installationId);
+        assertEquals(link.linkedAt(), repeated.linkedAt());
+        assertEquals(installationId, repeated.installationId());
+
+        try {
+            identities.link(profile.id(), UUID.randomUUID(), installationId);
+            org.junit.Assert.fail("A linked profile must reject another online identity.");
+        } catch (StorageException expected) {
+            assertEquals(Messages.PROFILE_LINK_DIFFERENT_ACCOUNT, expected.getMessage());
+        }
+
+        identities.unlink(profile.id());
+        assertNull(identities.findLink(profile.id()));
+    }
+
+    @Test
+    public void versionOneDatabaseMigratesToProfileLinksSchema() throws Exception {
+        java.nio.file.Path path = temporaryFolder.newFolder("legacy").toPath().resolve("squares.db");
+        String profileId = UUID.randomUUID().toString();
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + path);
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE profiles (id TEXT PRIMARY KEY)");
+            statement.execute("CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+            statement.execute("INSERT INTO profiles(id) VALUES ('" + profileId + "')");
+            statement.execute("PRAGMA user_version=1");
+        }
+
+        LocalDatabase legacy = new LocalDatabase(path);
+        legacy.initialize();
+        UUID installationId = new SqlitePlayerIdentityStore(legacy).getOrCreateInstallationId();
+
+        try (Connection connection = legacy.open();
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("PRAGMA user_version")) {
+            assertTrue(result.next());
+            assertEquals(2, result.getInt(1));
+        }
+        assertTrue(installationId != null);
     }
 
     @Test

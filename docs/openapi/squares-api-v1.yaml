@@ -44,7 +44,7 @@ paths:
       summary: Vrati serverovy ucet odvozeny z access tokenu.
       responses:
         '200':
-          description: Vlastni ucet a volitelny verejny profil.
+          description: Vlastni ucet a centralni Player Identity bez herne specifickych dat.
           content:
             application/json:
               schema:
@@ -56,6 +56,30 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /me/profile:
+    get:
+      tags: [Identity]
+      operationId: getMyProfile
+      summary: Vrati vlastni Squares profil.
+      responses:
+        '200':
+          description: Vlastni Squares profil.
+          headers:
+            ETag:
+              description: Aktualni revize profilu.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPlayer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
     put:
       tags: [Identity]
       operationId: putMyProfile
@@ -402,15 +426,15 @@ components:
     Me:
       type: object
       additionalProperties: false
-      required: [accountStatus, onboardingRequired, createdAt]
+      required: [accountStatus, playerId, createdAt]
       properties:
         accountStatus:
           type: string
           enum: [ACTIVE, BLOCKED]
-        onboardingRequired:
-          type: boolean
-        player:
-          $ref: '#/components/schemas/PublicPlayer'
+        playerId:
+          type: string
+          format: uuid
+          description: Centralni Player Identity sdilena budoucimi hrami a Squares profilem.
         createdAt:
           type: string
           format: date-time

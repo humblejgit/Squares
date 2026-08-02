@@ -8,9 +8,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 
 import cz.humblej.squares.server.metadata.MetadataProperties;
-import cz.humblej.squares.server.security.OidcProperties;
+import cz.humblej.identity.server.security.OidcProperties;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"cz.humblej.squares.server", "cz.humblej.identity.server"})
 @EnableConfigurationProperties({MetadataProperties.class, OidcProperties.class})
 public class SquaresServerApplication {
     public static void main(String[] args) {

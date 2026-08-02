@@ -13,7 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 public final class LocalDatabase {
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
 
     private final Path databasePath;
 
@@ -55,6 +55,11 @@ public final class LocalDatabase {
 
             if (version == 0) {
                 createSchemaVersionOne(connection);
+                version = 1;
+            }
+
+            if (version == 1) {
+                migrateToVersionTwo(connection);
             }
         } catch (SQLException exception) {
             throw new StorageException(Messages.DATABASE_INITIALIZATION_FAILED, exception);
@@ -127,6 +132,27 @@ public final class LocalDatabase {
                     + "event_type TEXT NOT NULL, payload TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'PENDING', "
                     + "attempts INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, last_error TEXT)");
             statement.execute("CREATE INDEX outbox_state_idx ON outbox(state, created_at)");
+            statement.execute("PRAGMA user_version=1");
+            connection.commit();
+        } catch (SQLException exception) {
+            connection.rollback();
+            throw exception;
+        } finally {
+            connection.setAutoCommit(previousAutoCommit);
+        }
+    }
+
+    private static void migrateToVersionTwo(Connection connection) throws SQLException {
+        boolean previousAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE profile_server_links ("
+                    + "local_profile_id TEXT PRIMARY KEY, "
+                    + "server_player_id TEXT NOT NULL, "
+                    + "installation_id TEXT NOT NULL, "
+                    + "linked_at INTEGER NOT NULL, "
+                    + "FOREIGN KEY (local_profile_id) REFERENCES profiles(id) ON DELETE CASCADE)");
             statement.execute("PRAGMA user_version=" + SCHEMA_VERSION);
             connection.commit();
         } catch (SQLException exception) {

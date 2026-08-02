@@ -1,6 +1,7 @@
 package cz.humblej.squares.app;
 
 import cz.humblej.squares.auth.OnlineAccountService;
+import cz.humblej.identity.model.InstallationInfo;
 import cz.humblej.squares.model.GameResult;
 import cz.humblej.squares.model.PlayerProfile;
 import cz.humblej.squares.network.NetworkGame;
@@ -8,8 +9,10 @@ import cz.humblej.squares.persistence.GameResultRecorder;
 import cz.humblej.squares.persistence.GameStore;
 import cz.humblej.squares.persistence.LocalDatabase;
 import cz.humblej.squares.persistence.ProfileStore;
+import cz.humblej.squares.persistence.PlayerIdentityStore;
 import cz.humblej.squares.persistence.SqliteGameStore;
 import cz.humblej.squares.persistence.SqliteProfileStore;
+import cz.humblej.squares.persistence.SqlitePlayerIdentityStore;
 import cz.humblej.squares.persistence.SqliteStatisticsStore;
 import cz.humblej.squares.persistence.StatisticsStore;
 import cz.humblej.squares.persistence.StorageException;
@@ -48,6 +51,8 @@ import java.util.List;
 public final class SquaresApp {
     private static final int DEFAULT_NETWORK_PORT = 1080;
     private static final OnlineAccountService ONLINE_ACCOUNT = OnlineAccountService.systemDefault();
+    private static PlayerIdentityStore playerIdentityStore;
+    private static InstallationInfo installationInfo;
 
     private SquaresApp() {
     }
@@ -77,6 +82,17 @@ public final class SquaresApp {
         }
 
         ProfileStore profileStore = new SqliteProfileStore(database);
+        playerIdentityStore = new SqlitePlayerIdentityStore(database);
+        try {
+            installationInfo = InstallationInfo.windows(
+                    playerIdentityStore.getOrCreateInstallationId(), BuildInfo.buildId());
+        } catch (StorageException exception) {
+            JOptionPane.showMessageDialog(null,
+                    Messages.databaseInitializationFailed(exception.getMessage()),
+                    Messages.DATABASE_ERROR_TITLE,
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         GameStore gameStore = new SqliteGameStore(database);
         StatisticsStore statisticsStore = new SqliteStatisticsStore(database);
         PlayerProfile activeProfile = ProfileDialog.chooseActive(null, profileStore);
@@ -203,6 +219,7 @@ public final class SquaresApp {
             NetworkGame.HostController hostController = NetworkGame.host(frame, panel, networkAddress.address(), port,
                     activeProfile, recorder);
             installGameMenu(frame, panel, false,
+                    () -> activeProfile,
                     () -> askHostForSettingsChange(frame, hostController),
                     () -> showNetworkProfileChangeMessage(frame),
                     () -> showStatistics(frame, panel, statisticsStore, activeProfile, false));
@@ -226,6 +243,7 @@ public final class SquaresApp {
             panel.setRestartHandler(() -> askForLocalRestart(frame, panel));
             AppWindowSupport.installPauseHandling(frame, panel);
             installGameMenu(frame, panel, true,
+                    panel::redPlayerProfile,
                     () -> askLocalForSettingsChange(frame, panel, gameMode == 1),
                     () -> askLocalForProfileSwitch(frame, panel, profileStore, gameMode == 1),
                     () -> showStatistics(frame, panel, statisticsStore, panel.redPlayerProfile(), true));
@@ -326,6 +344,7 @@ public final class SquaresApp {
     }
 
     private static void installGameMenu(JFrame frame, SquaresPanel panel, boolean pauseClockForDialogs,
+                                        java.util.function.Supplier<PlayerProfile> localProfile,
                                         Runnable changeSizeAction, Runnable switchProfileAction,
                                         Runnable statisticsAction) {
         JMenuBar menuBar = new JMenuBar();
@@ -344,7 +363,7 @@ public final class SquaresApp {
         switchProfileItem.addActionListener(event -> switchProfileAction.run());
         statisticsItem.addActionListener(event -> statisticsAction.run());
         onlineAccountItem.addActionListener(event ->
-                showOnlineAccount(frame, panel, pauseClockForDialogs));
+                showOnlineAccount(frame, panel, pauseClockForDialogs, localProfile.get()));
         soundsItem.addActionListener(event -> SoundPlayer.setEnabled(soundsItem.isSelected()));
         aboutItem.addActionListener(event -> showAbout(frame, panel, pauseClockForDialogs));
         exitItem.addActionListener(event -> exitApplication(frame));
@@ -369,7 +388,7 @@ public final class SquaresApp {
     public static void installNetworkClientGameMenu(JFrame frame, SquaresPanel panel,
                                              StatisticsStore statisticsStore,
                                              PlayerProfile localProfile) {
-        installGameMenu(frame, panel, false, null,
+        installGameMenu(frame, panel, false, () -> localProfile, null,
                 () -> showNetworkProfileChangeMessage(frame),
                 () -> showStatistics(frame, panel, statisticsStore, localProfile, false));
     }
@@ -402,12 +421,14 @@ public final class SquaresApp {
         }
     }
 
-    private static void showOnlineAccount(JFrame frame, SquaresPanel panel, boolean pauseClock) {
+    private static void showOnlineAccount(JFrame frame, SquaresPanel panel, boolean pauseClock,
+                                          PlayerProfile localProfile) {
         if (pauseClock) {
             panel.setClockPausedByDialog(true);
         }
         try {
-            OnlineAccountDialog.show(frame, ONLINE_ACCOUNT);
+            OnlineAccountDialog.show(frame, ONLINE_ACCOUNT, localProfile,
+                    playerIdentityStore, installationInfo);
         } finally {
             if (pauseClock) {
                 panel.setClockPausedByDialog(false);
