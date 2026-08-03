@@ -23,8 +23,10 @@ import cz.humblej.squares.ui.ProfileDialog;
 import cz.humblej.squares.ui.SoundPlayer;
 import cz.humblej.squares.ui.SquaresPanel;
 import cz.humblej.squares.ui.StatisticsDialog;
+import cz.humblej.squares.sync.GameResultSyncService;
 
 import javax.swing.JFrame;
+import javax.swing.ButtonGroup;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JCheckBox;
 import javax.swing.JButton;
@@ -34,6 +36,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
@@ -53,6 +56,7 @@ public final class SquaresApp {
     private static final OnlineAccountService ONLINE_ACCOUNT = OnlineAccountService.systemDefault();
     private static PlayerIdentityStore playerIdentityStore;
     private static InstallationInfo installationInfo;
+    private static GameResultSyncService resultSync;
 
     private SquaresApp() {
     }
@@ -93,7 +97,9 @@ public final class SquaresApp {
                     JOptionPane.ERROR_MESSAGE);
             return;
         }
-        GameStore gameStore = new SqliteGameStore(database);
+        SqliteGameStore gameStore = new SqliteGameStore(database);
+        resultSync = new GameResultSyncService(ONLINE_ACCOUNT, gameStore, installationInfo);
+        resultSync.synchronizeInBackground();
         StatisticsStore statisticsStore = new SqliteStatisticsStore(database);
         PlayerProfile activeProfile = ProfileDialog.chooseActive(null, profileStore);
         if (activeProfile == null) {
@@ -134,7 +140,8 @@ public final class SquaresApp {
 
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setContentPane(panel);
-        GameResultRecorder recorder = new GameResultRecorder(frame, gameStore);
+        GameResultRecorder recorder = new GameResultRecorder(
+                frame, gameStore, resultSync::synchronizeInBackground);
         if (!configureGameMode(frame, panel, boardSize, gameMode, activeProfile,
                 profileStore, statisticsStore, recorder)) {
             frame.dispose();
@@ -163,7 +170,8 @@ public final class SquaresApp {
         frame.setVisible(true);
 
         NetworkGame.join(frame, host.trim(), port, activeProfile,
-                new GameResultRecorder(frame, gameStore), statisticsStore);
+                new GameResultRecorder(frame, gameStore, resultSync::synchronizeInBackground),
+                statisticsStore);
     }
 
     private static int askGameMode() {
@@ -354,8 +362,23 @@ public final class SquaresApp {
         JMenuItem statisticsItem = new JMenuItem(Messages.MENU_STATISTICS);
         JMenuItem onlineAccountItem = new JMenuItem(Messages.MENU_ONLINE_ACCOUNT);
         JCheckBoxMenuItem soundsItem = new JCheckBoxMenuItem(Messages.MENU_SOUNDS, SoundPlayer.isEnabled());
+        JMenu languageMenu = new JMenu(Messages.MENU_LANGUAGE);
+        JRadioButtonMenuItem czechItem = new JRadioButtonMenuItem(Messages.LANGUAGE_CZECH);
+        JRadioButtonMenuItem englishItem = new JRadioButtonMenuItem(Messages.LANGUAGE_ENGLISH);
         JMenuItem aboutItem = new JMenuItem(Messages.MENU_ABOUT);
         JMenuItem exitItem = new JMenuItem(Messages.MENU_EXIT);
+
+        ButtonGroup languageGroup = new ButtonGroup();
+        languageGroup.add(czechItem);
+        languageGroup.add(englishItem);
+        czechItem.setSelected(Messages.preferredLanguage() == Messages.Language.CZECH);
+        englishItem.setSelected(Messages.preferredLanguage() == Messages.Language.ENGLISH);
+        czechItem.addActionListener(event -> selectLanguage(
+                frame, Messages.Language.CZECH));
+        englishItem.addActionListener(event -> selectLanguage(
+                frame, Messages.Language.ENGLISH));
+        languageMenu.add(czechItem);
+        languageMenu.add(englishItem);
 
         if (changeSizeAction != null) {
             settingsItem.addActionListener(event -> changeSizeAction.run());
@@ -374,6 +397,7 @@ public final class SquaresApp {
         gameMenu.add(statisticsItem);
         gameMenu.add(onlineAccountItem);
         gameMenu.add(soundsItem);
+        gameMenu.add(languageMenu);
         gameMenu.addSeparator();
         gameMenu.add(aboutItem);
         gameMenu.addSeparator();
@@ -383,6 +407,17 @@ public final class SquaresApp {
         frame.revalidate();
         frame.repaint();
         AppWindowSupport.fitToContent(frame);
+    }
+
+    private static void selectLanguage(JFrame frame, Messages.Language selected) {
+        if (selected == Messages.preferredLanguage()) {
+            return;
+        }
+        Messages.saveLanguageForNextStart(selected);
+        JOptionPane.showMessageDialog(frame,
+                Messages.LANGUAGE_CHANGE_RESTART,
+                Messages.LANGUAGE_CHANGE_TITLE,
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     public static void installNetworkClientGameMenu(JFrame frame, SquaresPanel panel,
@@ -428,7 +463,7 @@ public final class SquaresApp {
         }
         try {
             OnlineAccountDialog.show(frame, ONLINE_ACCOUNT, localProfile,
-                    playerIdentityStore, installationInfo);
+                    playerIdentityStore, installationInfo, resultSync);
         } finally {
             if (pauseClock) {
                 panel.setClockPausedByDialog(false);

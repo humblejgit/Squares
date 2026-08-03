@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+## 4.5.0 - 2026-08-03
+
+- Implementovany idempotentni endpointy `PUT/GET /api/v1/me/game-submissions/{gameId}`.
+- Server overuje registrovanou instalaci, identitu odesilatele a domenove invarianty `GameResult`.
+- Shodna podani obou stran LAN hry se paruji jako `PEER_CONFIRMED`; rozdilna podani konci jako `CONFLICTED`.
+- Lokalni SQLite outbox byl rozsiren o stavy `SENDING`, `RETRY`, `SENT` a `DEAD`, obnovu preruseneho odesilani a exponencialni odklad.
+- Vysledky se synchronizuji automaticky po hre a rucne z dialogu online uctu.
+- Dialog online uctu zobrazuje pocty cekajicich, odesilanych, odeslanych a chybnych vysledku.
+- Hlaseni desktopove hry i identity byla presunuta do externich ceskych a anglickych katalogu.
+- V menu hry lze zvolit cestinu nebo anglictinu; volba se pouzije pri pristim spusteni.
+- Klient posila serveru zvoleny jazyk v hlavicce `Accept-Language`.
+- Serverove schema pro cisty start odkazuje herni data primo na centralni Player Identity.
+- Verze projektu a kontrola sitoveho buildu byly sjednoceny na 4.5.0.
+
 ## 4.4.0 - 2026-08-02
 
 - Zavedena centralni serverova `Player Identity`, ktera je oddelena od

@@ -2,7 +2,7 @@ CREATE TABLE game_submissions (
     submission_id uuid PRIMARY KEY,
     game_id uuid NOT NULL,
     submitted_by_account_id uuid NOT NULL REFERENCES accounts (account_id),
-    submitted_by_player_id uuid NOT NULL REFERENCES players (player_id),
+    submitted_by_player_id uuid NOT NULL REFERENCES player_identities (player_id),
     installation_id uuid NOT NULL,
     payload jsonb NOT NULL,
     payload_hash bytea NOT NULL,
@@ -47,7 +47,7 @@ CREATE TABLE games (
 CREATE TABLE game_players (
     game_id uuid NOT NULL REFERENCES games (game_id) ON DELETE CASCADE,
     seat varchar(8) NOT NULL,
-    player_id uuid REFERENCES players (player_id),
+    player_id uuid REFERENCES player_identities (player_id),
     player_type varchar(16) NOT NULL,
     display_name_snapshot varchar(40) NOT NULL,
     score integer NOT NULL,

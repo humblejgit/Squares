@@ -10,6 +10,9 @@ import cz.humblej.identity.client.TokenSet;
 import cz.humblej.identity.client.TokenStore;
 import cz.humblej.identity.desktop.OidcClient;
 import cz.humblej.identity.model.InstallationInfo;
+import cz.humblej.squares.model.GameResult;
+import cz.humblej.squares.model.PlayerProfile;
+import cz.humblej.squares.model.PlayerResult;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,6 +29,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -41,6 +45,7 @@ public class OnlineAccountServiceTest {
     private AtomicInteger meRequests;
     private AtomicInteger profileRequests;
     private AtomicInteger installationRequests;
+    private AtomicInteger gameRequests;
     private volatile boolean rejectRefresh;
     private volatile boolean profileMissing;
 
@@ -53,6 +58,7 @@ public class OnlineAccountServiceTest {
         meRequests = new AtomicInteger();
         profileRequests = new AtomicInteger();
         installationRequests = new AtomicInteger();
+        gameRequests = new AtomicInteger();
 
         server.createContext("/issuer/.well-known/openid-configuration", exchange ->
                 json(exchange, 200, "{"
@@ -77,6 +83,29 @@ public class OnlineAccountServiceTest {
             }
         });
         server.createContext("/api/v1/me", exchange -> {
+            if (exchange.getRequestURI().getPath().startsWith("/api/v1/me/game-submissions/")) {
+                gameRequests.incrementAndGet();
+                String gameId = exchange.getRequestURI().getPath()
+                        .substring("/api/v1/me/game-submissions/".length());
+                String request = read(exchange.getRequestBody());
+                if (!"PUT".equals(exchange.getRequestMethod())
+                        || exchange.getRequestHeaders().getFirst(
+                        "X-Squares-Installation-Id") == null
+                        || !request.contains("\"submittedBySeat\":\"RED\"")
+                        || !request.contains("\"rulesVersion\":1")) {
+                    json(exchange, 400, "{\"code\":\"invalid-request\"}");
+                    return;
+                }
+                json(exchange, 201, "{"
+                        + "\"gameId\":\"" + gameId + "\","
+                        + "\"submissionStatus\":\"ACCEPTED\","
+                        + "\"verificationStatus\":\"UNVERIFIED\","
+                        + "\"ranked\":false,"
+                        + "\"receivedAt\":\"2026-08-03T12:05:00Z\","
+                        + "\"updatedAt\":\"2026-08-03T12:05:00Z\"}"
+                );
+                return;
+            }
             if (exchange.getRequestURI().getPath().startsWith("/api/v1/me/installations/")) {
                 installationRequests.incrementAndGet();
                 String installationId = exchange.getRequestURI().getPath()
@@ -219,6 +248,32 @@ public class OnlineAccountServiceTest {
 
         assertEquals(1, installationRequests.get());
         assertEquals(0, tokenRequests.get());
+    }
+
+    @Test
+    public void submitsStructuredGameWithInstallationHeader() throws Exception {
+        MemoryTokenStore store = new MemoryTokenStore(new TokenSet(
+                "fresh-access", "refresh", null, now.plusSeconds(600)));
+        OnlineAccountService service = service(store);
+        UUID playerId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID installationId = UUID.randomUUID();
+        UUID gameId = UUID.randomUUID();
+        PlayerProfile profile = new PlayerProfile(playerId, "Tester", now, false);
+        PlayerResult red = PlayerResult.forProfile(PlayerResult.Seat.RED, profile,
+                8, 50, PlayerResult.Outcome.WIN);
+        PlayerResult blue = PlayerResult.guest(PlayerResult.Seat.BLUE, "Host",
+                4, 60, PlayerResult.Outcome.LOSS);
+        GameResult game = new GameResult(gameId, now, now.plusSeconds(120),
+                GameResult.Mode.LOCAL, GameResult.FinishReason.BOARD_FULL,
+                5, 5, 120, 120, false, null, red, blue);
+
+        GameSubmissionStatus status = service.submitGame(
+                game, PlayerResult.Seat.RED, playerId, installationId);
+
+        assertEquals(gameId, status.gameId());
+        assertEquals("ACCEPTED", status.submissionStatus());
+        assertEquals("UNVERIFIED", status.verificationStatus());
+        assertEquals(1, gameRequests.get());
     }
 
     private OnlineAccountService service(MemoryTokenStore store) {

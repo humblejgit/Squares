@@ -5,6 +5,7 @@ import cz.humblej.squares.model.LocalProfileStatistics;
 import cz.humblej.squares.model.PlayerProfile;
 import cz.humblej.squares.model.PlayerResult;
 import cz.humblej.squares.ui.Messages;
+import cz.humblej.squares.auth.GameSubmissionStatus;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -109,7 +110,7 @@ public class SqliteStoresTest {
              Statement statement = connection.createStatement();
              ResultSet result = statement.executeQuery("PRAGMA user_version")) {
             assertTrue(result.next());
-            assertEquals(2, result.getInt(1));
+            assertEquals(3, result.getInt(1));
         }
         assertTrue(installationId != null);
     }
@@ -123,6 +124,51 @@ public class SqliteStoresTest {
         assertFalse(store.save(result));
         assertEquals(1L, store.countGames());
         assertEquals(1L, store.countPendingOutboxEvents());
+    }
+
+    @Test
+    public void outboxTracksRetrySentAndServerStatusForLinkedPlayer() throws Exception {
+        ProfileStore profiles = new SqliteProfileStore(database);
+        PlayerProfile red = profiles.create("Jana");
+        PlayerProfile blue = profiles.create("Petr");
+        UUID playerId = UUID.randomUUID();
+        UUID installationId = new SqlitePlayerIdentityStore(database).getOrCreateInstallationId();
+        new SqlitePlayerIdentityStore(database).link(red.id(), playerId, installationId);
+        SqliteGameStore games = new SqliteGameStore(database);
+        GameResult game = networkResult(red, 8, PlayerResult.Outcome.WIN,
+                blue, 4, PlayerResult.Outcome.LOSS);
+        games.save(game);
+
+        OutboxEvent event = games.claimNext(playerId, Instant.now(), false);
+        assertEquals(game.gameId(), event.eventId());
+        assertEquals(PlayerResult.Seat.RED, event.submittedBySeat());
+        assertEquals(1, event.attempts());
+        assertEquals(1L, games.summary(playerId).sending());
+
+        games.markRetry(event.eventId(), "server offline", Instant.now().plusSeconds(60));
+        assertNull(games.claimNext(playerId, Instant.now(), false));
+        event = games.claimNext(playerId, Instant.now(), true);
+        assertEquals(2, event.attempts());
+
+        Instant received = Instant.parse("2026-08-03T12:05:00Z");
+        games.markSent(event.eventId(), new GameSubmissionStatus(
+                game.gameId(), "PENDING_PEER", "UNVERIFIED", false,
+                received, received), received.plusSeconds(1));
+        SyncSummary summary = games.summary(playerId);
+        assertEquals(0L, summary.pending());
+        assertEquals(0L, summary.sending());
+        assertEquals(1L, summary.sent());
+        assertEquals(0L, summary.failed());
+        assertEquals(1L, summary.pendingPeer());
+        assertEquals(game.gameId(), games.findPendingPeerSubmissions(playerId, 10).get(0));
+
+        games.markSent(event.eventId(), new GameSubmissionStatus(
+                game.gameId(), "MATCHED", "PEER_CONFIRMED", false,
+                received, received.plusSeconds(5)), received.plusSeconds(6));
+        summary = games.summary(playerId);
+        assertEquals(0L, summary.pendingPeer());
+        assertEquals(1L, summary.matched());
+        assertEquals(0L, games.countPendingOutboxEvents());
     }
 
     @Test

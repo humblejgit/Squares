@@ -9,6 +9,8 @@ import cz.humblej.squares.model.PlayerProfile;
 import cz.humblej.squares.persistence.PlayerIdentityStore;
 import cz.humblej.squares.persistence.ProfileServerLink;
 import cz.humblej.squares.persistence.StorageException;
+import cz.humblej.squares.persistence.SyncSummary;
+import cz.humblej.squares.sync.GameResultSyncService;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -36,16 +38,19 @@ public final class OnlineAccountDialog {
     private final PlayerProfile localProfile;
     private final PlayerIdentityStore identityStore;
     private final InstallationInfo installation;
+    private final GameResultSyncService syncService;
     private final JPanel root = new JPanel(new BorderLayout(10, 10));
 
     private OnlineAccountDialog(JFrame parent, OnlineAccountService service,
                                 PlayerProfile localProfile,
                                 PlayerIdentityStore identityStore,
-                                InstallationInfo installation) {
+                                InstallationInfo installation,
+                                GameResultSyncService syncService) {
         this.service = service;
         this.localProfile = localProfile;
         this.identityStore = identityStore;
         this.installation = installation;
+        this.syncService = syncService;
         this.dialog = new JDialog(parent, Messages.ONLINE_ACCOUNT_TITLE, true);
         root.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -55,9 +60,10 @@ public final class OnlineAccountDialog {
     public static void show(JFrame parent, OnlineAccountService service,
                             PlayerProfile localProfile,
                             PlayerIdentityStore identityStore,
-                            InstallationInfo installation) {
+                            InstallationInfo installation,
+                            GameResultSyncService syncService) {
         OnlineAccountDialog accountDialog = new OnlineAccountDialog(
-                parent, service, localProfile, identityStore, installation);
+                parent, service, localProfile, identityStore, installation, syncService);
         String warning = service.consumeRestorationWarning();
         if (warning != null) {
             JOptionPane.showMessageDialog(parent,
@@ -75,13 +81,18 @@ public final class OnlineAccountDialog {
     }
 
     private void loadAccount() {
-        runTask(Messages.ONLINE_LOADING, this::loadRegisteredAccount, this::showAccount);
+        runTask(Messages.ONLINE_LOADING, () -> {
+            OnlineAccount account = loadRegisteredAccount();
+            synchronizeWithoutHidingAccount();
+            return account;
+        }, this::showAccount);
     }
 
     private void login() {
         runTask(Messages.ONLINE_BROWSER_WAIT, () -> {
             OnlineAccount account = service.login();
             service.registerInstallation(installation);
+            synchronizeWithoutHidingAccount();
             return account;
         }, this::showAccount);
     }
@@ -108,6 +119,7 @@ public final class OnlineAccountDialog {
             } catch (StorageException exception) {
                 throw new AuthenticationException(exception.getMessage(), exception);
             }
+            syncService.synchronizeInBackground();
             return account;
         }, this::showAccount);
     }
@@ -198,6 +210,14 @@ public final class OnlineAccountDialog {
                 ? Messages.ONLINE_PROFILE_LINKED
                 : Messages.ONLINE_PROFILE_LINKED_ELSEWHERE;
         addFormRow(form, constraints, 5, "", new JLabel(linkStatus));
+        SyncSummary syncSummary;
+        try {
+            syncSummary = syncService.summary(account);
+        } catch (StorageException exception) {
+            syncSummary = new SyncSummary(0, 0, 0, 0);
+        }
+        addFormRow(form, constraints, 6, Messages.ONLINE_SYNC_STATUS,
+                new JLabel(Messages.onlineSyncStatus(syncSummary)));
         root.add(form, BorderLayout.CENTER);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -207,6 +227,7 @@ public final class OnlineAccountDialog {
         JButton close = new JButton(Messages.ONLINE_CLOSE);
         JButton linkButton = new JButton(link == null
                 ? Messages.ONLINE_LINK_PROFILE : Messages.ONLINE_UNLINK_PROFILE);
+        JButton syncButton = new JButton(Messages.ONLINE_SYNC_NOW);
         save.addActionListener(event -> saveProfile(handle, displayName));
         if (link == null) {
             linkButton.addActionListener(event -> linkProfile(account));
@@ -214,13 +235,36 @@ public final class OnlineAccountDialog {
             linkButton.addActionListener(event -> unlinkProfile(account));
         }
         logout.addActionListener(event -> logout());
+        syncButton.setEnabled(linkedHere);
+        syncButton.addActionListener(event -> synchronize(account));
         close.addActionListener(event -> dialog.dispose());
         buttons.add(save);
         buttons.add(linkButton);
+        buttons.add(syncButton);
         buttons.add(logout);
         buttons.add(close);
         root.add(buttons, BorderLayout.SOUTH);
         refreshDialog();
+    }
+
+    private void synchronize(OnlineAccount account) {
+        runTask(Messages.ONLINE_SYNCING, () -> {
+            syncService.synchronizeNow(true);
+            return account;
+        }, this::showAccount);
+    }
+
+    private void synchronizeWithoutHidingAccount() throws AuthenticationException {
+        try {
+            syncService.synchronizeNow(false);
+        } catch (StorageException ignored) {
+            // The account remains usable and the local status will expose pending work.
+        } catch (AuthenticationException exception) {
+            if (exception.sessionExpired()) {
+                throw exception;
+            }
+            // A submission failure must not hide an otherwise loaded online account.
+        }
     }
 
     private void showBusy(String message) {

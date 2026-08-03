@@ -13,7 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 public final class LocalDatabase {
-    private static final int SCHEMA_VERSION = 2;
+    private static final int SCHEMA_VERSION = 3;
 
     private final Path databasePath;
 
@@ -60,6 +60,11 @@ public final class LocalDatabase {
 
             if (version == 1) {
                 migrateToVersionTwo(connection);
+                version = 2;
+            }
+
+            if (version == 2) {
+                migrateToVersionThree(connection);
             }
         } catch (SQLException exception) {
             throw new StorageException(Messages.DATABASE_INITIALIZATION_FAILED, exception);
@@ -160,6 +165,38 @@ public final class LocalDatabase {
             throw exception;
         } finally {
             connection.setAutoCommit(previousAutoCommit);
+        }
+    }
+
+    private static void migrateToVersionThree(Connection connection) throws SQLException {
+        boolean previousAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+
+        try (Statement statement = connection.createStatement()) {
+            if (tableExists(connection, "outbox")) {
+                statement.execute("ALTER TABLE outbox ADD COLUMN next_attempt_at INTEGER");
+                statement.execute("ALTER TABLE outbox ADD COLUMN submission_status TEXT");
+                statement.execute("ALTER TABLE outbox ADD COLUMN verification_status TEXT");
+                statement.execute("ALTER TABLE outbox ADD COLUMN server_updated_at INTEGER");
+                statement.execute("ALTER TABLE outbox ADD COLUMN synced_at INTEGER");
+            }
+            statement.execute("PRAGMA user_version=" + SCHEMA_VERSION);
+            connection.commit();
+        } catch (SQLException exception) {
+            connection.rollback();
+            throw exception;
+        } finally {
+            connection.setAutoCommit(previousAutoCommit);
+        }
+    }
+
+    private static boolean tableExists(Connection connection, String table) throws SQLException {
+        try (java.sql.PreparedStatement statement = connection.prepareStatement(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")) {
+            statement.setString(1, table);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next();
+            }
         }
     }
 }

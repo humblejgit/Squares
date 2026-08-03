@@ -2,6 +2,8 @@ package cz.humblej.squares.auth;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import cz.humblej.identity.client.AuthenticatedSession;
 import cz.humblej.identity.client.AuthenticationException;
@@ -11,12 +13,17 @@ import cz.humblej.identity.client.TokenStore;
 import cz.humblej.identity.desktop.DpapiTokenStore;
 import cz.humblej.identity.desktop.OidcClient;
 import cz.humblej.identity.model.InstallationInfo;
+import cz.humblej.squares.app.BuildInfo;
+import cz.humblej.squares.model.GameResult;
+import cz.humblej.squares.model.PlayerResult;
 
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.Collections;
 import java.util.UUID;
 
 /** Squares-specific mapping built on the reusable authenticated identity session. */
@@ -135,6 +142,49 @@ public final class OnlineAccountService {
         }
     }
 
+    public GameSubmissionStatus submitGame(
+            GameResult game, PlayerResult.Seat submittedBySeat,
+            UUID playerId, UUID installationId) throws AuthenticationException {
+        PlayerResult submitter = submittedBySeat == PlayerResult.Seat.RED
+                ? game.redPlayer() : game.bluePlayer();
+        if (submitter.playerType() != PlayerResult.PlayerType.PROFILE) {
+            throw new AuthenticationException(
+                    "Výsledek nelze odeslat za hráče bez místního profilu.");
+        }
+
+        ObjectNode body = mapper.createObjectNode();
+        body.put("rulesVersion", 1);
+        body.put("coreVersion", BuildInfo.buildId());
+        body.put("mode", game.mode().name());
+        body.put("finishReason", game.finishReason().name());
+        body.put("startedAt", game.startedAt().toString());
+        body.put("finishedAt", game.finishedAt().toString());
+        body.put("rows", game.rows());
+        body.put("columns", game.columns());
+        body.put("thinkingTimeLimitSeconds", game.thinkingTimeLimitSeconds());
+        body.put("totalSeconds", game.totalSeconds());
+        body.put("randomInitialEdges", game.randomInitialEdges());
+        if (game.cpuDifficulty() != null) {
+            body.put("cpuDifficulty", game.cpuDifficulty().name());
+        }
+        body.put("submittedBySeat", submittedBySeat.name());
+        ArrayNode players = body.putArray("players");
+        addPlayer(players, game.redPlayer(), submittedBySeat, playerId);
+        addPlayer(players, game.bluePlayer(), submittedBySeat, playerId);
+
+        HttpTransport.Response response = session.putJson(
+                "/me/game-submissions/" + game.gameId(), body.toString(),
+                Collections.singletonMap(
+                        "X-Squares-Installation-Id", installationId.toString()));
+        return parseSubmissionStatus(response.body(), game.gameId());
+    }
+
+    public GameSubmissionStatus getGameSubmission(UUID gameId)
+            throws AuthenticationException {
+        return parseSubmissionStatus(
+                session.get("/me/game-submissions/" + gameId).body(), gameId);
+    }
+
     public void logout() {
         session.logout();
     }
@@ -161,6 +211,41 @@ public final class OnlineAccountService {
         } catch (IOException exception) {
             throw new AuthenticationException(
                     "Squares server vrátil neplatná data profilu.", exception);
+        }
+    }
+
+    private static void addPlayer(ArrayNode players, PlayerResult player,
+                                  PlayerResult.Seat submittedBySeat, UUID playerId) {
+        ObjectNode json = players.addObject();
+        json.put("seat", player.seat().name());
+        json.put("playerType", player.playerType().name());
+        if (player.seat() == submittedBySeat) {
+            json.put("playerId", playerId.toString());
+        }
+        json.put("displayNameSnapshot", player.displayName());
+        json.put("score", player.score());
+        json.put("thinkingSeconds", player.thinkingSeconds());
+        json.put("outcome", player.outcome().name());
+    }
+
+    private GameSubmissionStatus parseSubmissionStatus(byte[] body, UUID expectedGameId)
+            throws AuthenticationException {
+        try {
+            JsonNode json = mapper.readTree(body);
+            UUID gameId = UUID.fromString(requiredTextUnchecked(json, "gameId"));
+            if (!expectedGameId.equals(gameId)) {
+                throw new IllegalArgumentException("Game ID mismatch");
+            }
+            return new GameSubmissionStatus(
+                    gameId,
+                    requiredTextUnchecked(json, "submissionStatus"),
+                    requiredTextUnchecked(json, "verificationStatus"),
+                    json.path("ranked").asBoolean(),
+                    Instant.parse(requiredTextUnchecked(json, "receivedAt")),
+                    Instant.parse(requiredTextUnchecked(json, "updatedAt")));
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new AuthenticationException(
+                    "Squares server vrátil neplatný stav synchronizace.", exception);
         }
     }
 

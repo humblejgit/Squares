@@ -83,6 +83,17 @@ class IdentityApiIntegrationTest {
         mockMvc.perform(get("/api/v1/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("Content-Type", MediaType.APPLICATION_PROBLEM_JSON_VALUE))
+                .andExpect(jsonPath("$.title").value("Vyžadováno přihlášení"))
+                .andExpect(jsonPath("$.detail").value("Je vyžadován platný přístupový token."))
+                .andExpect(jsonPath("$.code").value("unauthorized"));
+    }
+
+    @Test
+    void localizesProblemResponseFromAcceptLanguage() throws Exception {
+        mockMvc.perform(get("/api/v1/me").header("Accept-Language", "en"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Authentication required"))
+                .andExpect(jsonPath("$.detail").value("A valid access token is required."))
                 .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
@@ -285,12 +296,199 @@ class IdentityApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalid))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Neplatný požadavek"))
+                .andExpect(jsonPath("$.detail").value("Požadavek obsahuje neplatná pole."))
                 .andExpect(jsonPath("$.code").value("validation-failed"))
                 .andExpect(jsonPath("$.violations").isArray());
 
         assertEquals(0, count(
                 "SELECT count(*) FROM installations WHERE installation_id = ?",
                 installationId));
+    }
+
+    @Test
+    void storesGameSubmissionIdempotentlyAndReturnsItsStatus() throws Exception {
+        String subject = unique("submission");
+        UUID playerId = resolvePlayerId(subject);
+        UUID installationId = registerInstallation(subject);
+        UUID gameId = UUID.randomUUID();
+        String body = localSubmission(playerId, 8);
+
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(subject))
+                        .header("X-Squares-Installation-Id", installationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.gameId").value(gameId.toString()))
+                .andExpect(jsonPath("$.submissionStatus").value("ACCEPTED"))
+                .andExpect(jsonPath("$.verificationStatus").value("UNVERIFIED"))
+                .andExpect(jsonPath("$.ranked").value(false));
+
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(subject))
+                        .header("X-Squares-Installation-Id", installationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submissionStatus").value("ACCEPTED"));
+
+        mockMvc.perform(get("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(subject)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submissionStatus").value("ACCEPTED"));
+
+        assertEquals(1, count("SELECT count(*) FROM game_submissions WHERE game_id = ?", gameId));
+        assertEquals(1, count("SELECT count(*) FROM games WHERE game_id = ?", gameId));
+    }
+
+    @Test
+    void rejectsDifferentPayloadForSamePlayerAndGame() throws Exception {
+        String subject = unique("submission-conflict");
+        UUID playerId = resolvePlayerId(subject);
+        UUID installationId = registerInstallation(subject);
+        UUID gameId = UUID.randomUUID();
+
+        submit(subject, installationId, gameId, localSubmission(playerId, 8), 201);
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(subject))
+                        .header("X-Squares-Installation-Id", installationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(localSubmission(playerId, 9)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("submission-payload-conflict"));
+    }
+
+    @Test
+    void matchesEqualNetworkSubmissionsFromBothPlayers() throws Exception {
+        String redSubject = unique("network-red");
+        String blueSubject = unique("network-blue");
+        UUID redPlayerId = resolvePlayerId(redSubject);
+        UUID bluePlayerId = resolvePlayerId(blueSubject);
+        UUID redInstallation = registerInstallation(redSubject);
+        UUID blueInstallation = registerInstallation(blueSubject);
+        UUID gameId = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(redSubject))
+                        .header("X-Squares-Installation-Id", redInstallation)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(networkSubmission("RED", redPlayerId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.submissionStatus").value("PENDING_PEER"));
+
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(blueSubject))
+                        .header("X-Squares-Installation-Id", blueInstallation)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(networkSubmission("BLUE", bluePlayerId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.submissionStatus").value("MATCHED"))
+                .andExpect(jsonPath("$.verificationStatus").value("PEER_CONFIRMED"));
+
+        mockMvc.perform(get("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(redSubject)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submissionStatus").value("MATCHED"))
+                .andExpect(jsonPath("$.verificationStatus").value("PEER_CONFIRMED"));
+    }
+
+    @Test
+    void rejectsUnregisteredInstallationAndInvalidDomainResult() throws Exception {
+        String subject = unique("invalid-submission");
+        UUID playerId = resolvePlayerId(subject);
+        UUID gameId = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(subject))
+                        .header("X-Squares-Installation-Id", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(localSubmission(playerId, 8)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("installation-not-registered"));
+
+        UUID installationId = registerInstallation(subject);
+        String invalid = localSubmission(playerId, 8)
+                .replace("\"outcome\":\"WIN\"", "\"outcome\":\"DRAW\"");
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(subject))
+                        .header("X-Squares-Installation-Id", installationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalid))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("invalid-game-submission"));
+    }
+
+    private UUID resolvePlayerId(String subject) throws Exception {
+        mockMvc.perform(get("/api/v1/me").with(identity(subject)))
+                .andExpect(status().isOk());
+        return jdbc.queryForObject("""
+                SELECT pi.player_id
+                FROM player_identities pi
+                JOIN account_identities ai ON ai.account_id = pi.account_id
+                WHERE ai.issuer = ? AND ai.subject = ?
+                """, UUID.class, ISSUER, subject);
+    }
+
+    private UUID registerInstallation(String subject) throws Exception {
+        UUID installationId = UUID.randomUUID();
+        mockMvc.perform(put("/api/v1/me/installations/{installationId}", installationId)
+                        .with(identity(subject))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"platform":"WINDOWS","appVersion":"4.5.0",
+                                 "coreVersion":"4.5.0","locale":"cs-CZ"}
+                                """))
+                .andExpect(status().isCreated());
+        return installationId;
+    }
+
+    private void submit(String subject, UUID installationId, UUID gameId,
+                        String body, int expectedStatus) throws Exception {
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", gameId)
+                        .with(identity(subject))
+                        .header("X-Squares-Installation-Id", installationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().is(expectedStatus));
+    }
+
+    private static String localSubmission(UUID playerId, int redScore) {
+        return """
+                {
+                  "rulesVersion":1,"coreVersion":"4.5.0","mode":"LOCAL",
+                  "finishReason":"BOARD_FULL","startedAt":"2026-08-03T12:00:00Z",
+                  "finishedAt":"2026-08-03T12:02:00Z","rows":5,"columns":5,
+                  "thinkingTimeLimitSeconds":120,"totalSeconds":120,
+                  "randomInitialEdges":false,"submittedBySeat":"RED",
+                  "players":[
+                    {"seat":"RED","playerType":"PROFILE","playerId":"%s",
+                     "displayNameSnapshot":"Red","score":%d,"thinkingSeconds":50,"outcome":"WIN"},
+                    {"seat":"BLUE","playerType":"GUEST","displayNameSnapshot":"Blue",
+                     "score":4,"thinkingSeconds":60,"outcome":"LOSS"}
+                  ]
+                }
+                """.formatted(playerId, redScore);
+    }
+
+    private static String networkSubmission(String seat, UUID playerId) {
+        String redId = "RED".equals(seat) ? ",\"playerId\":\"" + playerId + "\"" : "";
+        String blueId = "BLUE".equals(seat) ? ",\"playerId\":\"" + playerId + "\"" : "";
+        return """
+                {
+                  "rulesVersion":1,"coreVersion":"4.5.0","mode":"NETWORK",
+                  "finishReason":"BOARD_FULL","startedAt":"2026-08-03T12:00:00Z",
+                  "finishedAt":"2026-08-03T12:02:10Z","rows":5,"columns":5,
+                  "thinkingTimeLimitSeconds":120,"totalSeconds":130,
+                  "randomInitialEdges":false,"submittedBySeat":"%s",
+                  "players":[
+                    {"seat":"RED","playerType":"PROFILE"%s,
+                     "displayNameSnapshot":"Red","score":8,"thinkingSeconds":60,"outcome":"WIN"},
+                    {"seat":"BLUE","playerType":"PROFILE"%s,
+                     "displayNameSnapshot":"Blue","score":4,"thinkingSeconds":70,"outcome":"LOSS"}
+                  ]
+                }
+                """.formatted(seat, redId, blueId);
     }
 
     private RequestPostProcessor identity(String subject) {

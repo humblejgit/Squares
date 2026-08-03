@@ -1,10 +1,20 @@
 # Squares
 
-Java okenni hra pro dva hrace inspirovana hrou tecky a ctverce.
+Java okenni hra pro dva hrace inspirovana hrou ctverecky.
 
-Aktualni verze: **4.4.0**.
+Aktualni verze: **4.5.0**.
 
-## Funkce verze 4.4.0
+## Funkce verze 4.5.0
+
+- idempotentni odesilani lokalnich, CPU a LAN vysledku pres `PUT /api/v1/me/game-submissions/{gameId}`
+- serverova kontrola identity odesilatele, instalace a vsech domenovych invariantu vysledku
+- sparovani shodnych podani obou stran LAN hry jako `PEER_CONFIRMED` a zachyceni konfliktu
+- lokalni outbox se stavy pending, sending, retry, sent a dead vcetne obnovy prerusene synchronizace
+- automaticka synchronizace po dokonceni hry a rucni opakovani z dialogu online uctu
+- zobrazeni poctu cekajicich, odesilanych, odeslanych a chybnych vysledku
+- ceske a anglicke textove katalogy s volbou jazyka v menu `Hra / Jazyk`
+- jednotny jazyk klienta, prihlaseni a serverovych chyb pomoci `Accept-Language`
+- SQLite schema 3 uchovava stav podani vraceny serverem a exponencialni odklad opakovani
 
 - centralni serverova Player Identity oddelena od uctu a Squares profilu jako zaklad pro budouci vice her
 - znovupouzitelna identita vyclenena do ctyr Maven modulu bez zavislosti na Swingu a hernim modelu Squares
@@ -17,7 +27,7 @@ Aktualni verze: **4.4.0**.
 - lokalni uzivatelske profily s vyberem, prejmenovanim a archivaci
 - obrazovka statistik dostupna pres `Hra / Statistiky` ve vsech hernich rezimech
 - mistni zebricek aktivnich i archivovanych lokalnich profilu s poctem her, vyhrami, remizami, prohrami, celkovym skore a uspesnosti vyher
-- SQLite historie dokoncene hry a transakcni outbox pripraveny pro budouci serverovou synchronizaci
+- SQLite historie dokoncene hry a transakcni outbox pro serverovou synchronizaci
 - prihlaseni online uctu pres systemovy prohlizec pomoci OIDC Authorization Code + PKCE
 - bezpecne ulozeni obnovovaci relace pomoci Windows DPAPI, automaticka obnova tokenu a odhlaseni
 - nacteni online uctu a vytvoreni nebo uprava verejneho profilu primo z menu hry
@@ -88,10 +98,10 @@ navazane na prihlaseny Windows ucet.
 Projekt je rozdelen do sedmi Maven modulu:
 
 - `squares-core` - platformne nezavisle modely, herni pravidla, snapshoty, vysledky a CPU strategie
-- `humblej-identity-model` - Java 8 hodnotove typy identity bez zavislosti na UI nebo Springu
-- `humblej-identity-client` - OIDC token lifecycle, obnoveni relace a autentizovany HTTP transport
-- `humblej-identity-desktop` - Windows DPAPI, systemovy prohlizec a loopback Authorization Code + PKCE
-- `humblej-identity-server` - ucty, OIDC identity, centralni Player Identity, instalace a Spring Security/JDBC
+- `identity-model` - Java 8 hodnotove typy identity bez zavislosti na UI nebo Springu
+- `identity-client` - OIDC token lifecycle, obnoveni relace a autentizovany HTTP transport
+- `identity-desktop` - Windows DPAPI, systemovy prohlizec a loopback Authorization Code + PKCE
+- `identity-server` - ucty, OIDC identity, centralni Player Identity, instalace a Spring Security/JDBC
 - `squares-desktop` - Windows/Swing UI, Squares REST mapovani, SQLite persistence a sitova vrstva
 - `squares-server` - Squares profil, herni API a serverova synchronizace
 

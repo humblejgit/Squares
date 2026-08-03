@@ -1,320 +1,517 @@
 package cz.humblej.squares.ui;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
+import java.text.MessageFormat;
+import java.util.Locale;
+import java.util.PropertyResourceBundle;
+import java.util.ResourceBundle;
+import java.util.prefs.Preferences;
+
 import cz.humblej.squares.app.BuildInfo;
 import cz.humblej.squares.model.GameResult;
 import cz.humblej.squares.model.PlayerProfile;
 import cz.humblej.squares.model.PlayerResult;
+import cz.humblej.squares.persistence.SyncSummary;
 
+/** Localized desktop-client messages backed by resource bundles. */
 public final class Messages {
-    public static final String APP_TITLE = "Squares";
-    public static final String PLAYER_RED = "\u010cerven\u00fd hr\u00e1\u010d";
-    public static final String PLAYER_BLUE = "Modr\u00fd hr\u00e1\u010d";
-    public static final String PLAYER_GUEST = "Host";
-    public static final String PLAYER_CPU = "CPU";
-    public static final String WINDOW_HOST = "Squares - hostitel (\u010derven\u00fd)";
-    public static final String WINDOW_CLIENT = "Squares - klient (modr\u00fd)";
-    public static final String WINDOW_LOCAL = "Squares - lok\u00e1ln\u00ed hra";
-    public static final String WINDOW_COMPUTER = "Squares - proti po\u010d\u00edta\u010di";
+    private static final String BUNDLE_NAME = "i18n.messages";
+    private static final String LANGUAGE_PREFERENCE = "language";
+    private static final Preferences PREFERENCES =
+            Preferences.userNodeForPackage(Messages.class);
 
-    public static final String GAME_MODE_LOCAL = "\u010clov\u011bk vs. \u010dlov\u011bk";
-    public static final String GAME_MODE_COMPUTER = "\u010clov\u011bk vs. CPU";
-    public static final String GAME_MODE_HOST = "S\u00ed\u0165ov\u00e1 hra - server";
-    public static final String GAME_MODE_JOIN = "S\u00ed\u0165ov\u00e1 hra - klient";
-    public static final String GAME_MODE_PROMPT = "RE\u017dIM HRY";
+    public static String APP_TITLE;
+    public static String PLAYER_RED;
+    public static String PLAYER_BLUE;
+    public static String PLAYER_GUEST;
+    public static String PLAYER_CPU;
+    public static String WINDOW_HOST;
+    public static String WINDOW_CLIENT;
+    public static String WINDOW_LOCAL;
+    public static String WINDOW_COMPUTER;
+    public static String GAME_MODE_LOCAL;
+    public static String GAME_MODE_COMPUTER;
+    public static String GAME_MODE_HOST;
+    public static String GAME_MODE_JOIN;
+    public static String GAME_MODE_PROMPT;
+    public static String HOST_ADDRESS_PROMPT;
+    public static String CONNECTING_TO_HOST;
+    public static String CHAT_HOST_TITLE;
+    public static String CHAT_CLIENT_TITLE;
+    public static String CHAT_SEND;
+    public static String CHAT_EMOTICONS;
+    public static String CHAT_YOU;
+    public static String CHAT_HOST;
+    public static String CHAT_CLIENT;
+    public static String GAME_OPTIONS_TITLE;
+    public static String GAME_OPTIONS_BOARD_SIZE;
+    public static String GAME_OPTIONS_THINK_TIME;
+    public static String GAME_OPTIONS_DIFFICULTY;
+    public static String GAME_OPTIONS_RANDOM_EDGES;
+    public static String THINK_TIME_NONE;
+    public static String DIFFICULTY_EASY;
+    public static String DIFFICULTY_MEDIUM;
+    public static String DIFFICULTY_HARD;
+    public static String BOARD_SIZE_PROMPT;
+    public static String BOARD_SIZE_TITLE;
+    public static String ADAPTER_PROMPT;
+    public static String ADAPTER_TITLE;
+    public static String NO_NETWORK_ADAPTER;
+    public static String NETWORK_SETTINGS_ADAPTER;
+    public static String NETWORK_SETTINGS_PORT;
+    public static String NETWORK_SETTINGS_ACTIVE_CLIENT;
+    public static String INVALID_PORT;
+    public static String CURRENT_NETWORK_ADDRESS;
+    public static String MENU_GAME;
+    public static String MENU_SETTINGS;
+    public static String MENU_SWITCH_PROFILE;
+    public static String MENU_STATISTICS;
+    public static String MENU_ONLINE_ACCOUNT;
+    public static String MENU_SOUNDS;
+    public static String MENU_LANGUAGE;
+    public static String LANGUAGE_CZECH;
+    public static String LANGUAGE_ENGLISH;
+    public static String LANGUAGE_CHANGE_TITLE;
+    public static String LANGUAGE_CHANGE_RESTART;
+    public static String MENU_ABOUT;
+    public static String MENU_EXIT;
+    public static String PROFILE_TITLE;
+    public static String PROFILE_SELECT_PROMPT;
+    public static String PROFILE_CONTINUE;
+    public static String PROFILE_NEW;
+    public static String PROFILE_RENAME;
+    public static String PROFILE_ARCHIVE;
+    public static String PROFILE_EXIT;
+    public static String PROFILE_NAME_PROMPT;
+    public static String PROFILE_FIRST_NAME_PROMPT;
+    public static String PROFILE_NAME_REQUIRED;
+    public static String PROFILE_LAST_CANNOT_ARCHIVE;
+    public static String PROFILE_GUEST;
+    public static String PROFILE_OPPONENT_PROMPT;
+    public static String PROFILE_OPPONENT_TITLE;
+    public static String PROFILE_NETWORK_CHANGE_ONLY_AT_START;
+    public static String ONLINE_ACCOUNT_TITLE;
+    public static String ONLINE_SIGNED_OUT;
+    public static String ONLINE_LOGIN;
+    public static String ONLINE_LOGOUT;
+    public static String ONLINE_RETRY;
+    public static String ONLINE_CLOSE;
+    public static String ONLINE_LOADING;
+    public static String ONLINE_BROWSER_WAIT;
+    public static String ONLINE_LOGGING_OUT;
+    public static String ONLINE_LOGGED_OUT;
+    public static String ONLINE_SESSION_EXPIRED;
+    public static String ONLINE_SESSION_RESTORE_FAILED;
+    public static String ONLINE_ONBOARDING_REQUIRED;
+    public static String ONLINE_HANDLE;
+    public static String ONLINE_DISPLAY_NAME;
+    public static String ONLINE_CREATE_PROFILE;
+    public static String ONLINE_SAVE_PROFILE;
+    public static String ONLINE_PROFILE_SAVING;
+    public static String ONLINE_LOCAL_PROFILE;
+    public static String ONLINE_PLAYER_ID;
+    public static String ONLINE_INSTALLATION_ID;
+    public static String ONLINE_PROFILE_NOT_LINKED;
+    public static String ONLINE_PROFILE_LINKED;
+    public static String ONLINE_PROFILE_LINKED_ELSEWHERE;
+    public static String ONLINE_LINK_PROFILE;
+    public static String ONLINE_UNLINK_PROFILE;
+    public static String ONLINE_LINKING_PROFILE;
+    public static String ONLINE_UNLINKING_PROFILE;
+    public static String ONLINE_UNLINK_CONFIRM;
+    public static String ONLINE_SYNC_STATUS;
+    public static String ONLINE_SYNC_NOW;
+    public static String ONLINE_SYNCING;
+    public static String DATABASE_ERROR_TITLE;
+    public static String DATABASE_NEWER_SCHEMA;
+    public static String DATABASE_INITIALIZATION_FAILED;
+    public static String DATABASE_DIRECTORY_CREATE_FAILED;
+    public static String DATABASE_SQLITE_DRIVER_MISSING;
+    public static String DATABASE_READ_FAILED;
+    public static String GAME_RESULT_SAVE_FAILED;
+    public static String SYNC_STATE_LOAD_FAILED;
+    public static String SYNC_STATE_SAVE_FAILED;
+    public static String PROFILE_LIST_LOAD_FAILED;
+    public static String PROFILE_SELECTED_LOAD_FAILED;
+    public static String PROFILE_NOT_FOUND;
+    public static String PROFILE_ARCHIVE_FAILED;
+    public static String PROFILE_ARCHIVED_CANNOT_SELECT;
+    public static String PROFILE_SELECTION_SAVE_FAILED;
+    public static String PROFILE_LOAD_FAILED;
+    public static String PROFILE_DUPLICATE_NAME;
+    public static String PROFILE_SAVE_FAILED;
+    public static String INSTALLATION_ID_FAILED;
+    public static String PROFILE_LINK_LOAD_FAILED;
+    public static String PROFILE_LINK_SAVE_FAILED;
+    public static String PROFILE_UNLINK_FAILED;
+    public static String PROFILE_LINK_DIFFERENT_ACCOUNT;
+    public static String STATISTICS_TITLE;
+    public static String STATISTICS_LOCAL_LEADERBOARD;
+    public static String STATISTICS_CURRENT_PROFILE_MISSING;
+    public static String STATISTICS_ARCHIVED_PROFILE_SUFFIX;
+    public static String STATISTICS_LOAD_FAILED;
+    public static String STATISTICS_COLUMN_POSITION;
+    public static String STATISTICS_COLUMN_PROFILE;
+    public static String STATISTICS_COLUMN_GAMES;
+    public static String STATISTICS_COLUMN_WINS;
+    public static String STATISTICS_COLUMN_DRAWS;
+    public static String STATISTICS_COLUMN_LOSSES;
+    public static String STATISTICS_COLUMN_SCORE;
+    public static String STATISTICS_COLUMN_WIN_PERCENTAGE;
+    public static String ABOUT_TITLE;
+    public static String CHANGE_SIZE_TITLE;
+    public static String OPTION_YES;
+    public static String OPTION_NO;
+    public static String OPTION_OK;
+    public static String OPTION_CANCEL;
+    public static String RESTART_BUTTON;
+    public static String RESTART_TITLE;
+    public static String RESTART_CONFIRM;
+    public static String RESTART_WAITING_FOR_CLIENT;
+    public static String RESTART_REQUEST_SENT;
+    public static String RESTART_REQUEST_FROM_CLIENT;
+    public static String RESTART_REQUEST_FROM_HOST;
+    public static String RESTART_DECLINED_BY_CLIENT;
+    public static String RESTART_DECLINED_BY_HOST;
+    public static String RESTART_HOST_BUSY;
+    public static String GAME_OVER_TITLE;
+    public static String NEW_GAME_PROMPT;
+    public static String NETWORK_GAME_TITLE;
+    public static String NETWORK_HOST_ENDED;
+    public static String NETWORK_CONNECT_FAILED;
+    public static String NETWORK_INCOMPATIBLE_BUILD;
+    public static String NETWORK_INCOMPATIBLE_PROTOCOL;
+    public static String INVALID_SIZE_MESSAGE;
+    public static String BUILD_INFO_PREFIX;
+    public static String BUILD_FILE_TIME_PREFIX;
+    public static String BUILD_INFO_UNKNOWN;
+    public static String HELP_TEXT;
 
-    public static final String HOST_ADDRESS_PROMPT = "IP adresa hostitele:";
-    public static final String CONNECTING_TO_HOST = "P\u0159ipojov\u00e1n\u00ed k hostiteli...";
-    public static final String CHAT_HOST_TITLE = "Chat";
-    public static final String CHAT_CLIENT_TITLE = "Chat";
-    public static final String CHAT_SEND = "Odeslat";
-    public static final String CHAT_EMOTICONS = "Emotikony";
-    public static final String CHAT_YOU = "J\u00e1";
-    public static final String CHAT_HOST = "Hostitel";
-    public static final String CHAT_CLIENT = "Klient";
-    public static final String GAME_OPTIONS_TITLE = "Squares - nastaven\u00ed hry";
-    public static final String GAME_OPTIONS_BOARD_SIZE = "Velikost pole:";
-    public static final String GAME_OPTIONS_THINK_TIME = "Max. \u010das na p\u0159em\u00fd\u0161len\u00ed:";
-    public static final String GAME_OPTIONS_DIFFICULTY = "Obt\u00ed\u017enost po\u010d\u00edta\u010de:";
-    public static final String GAME_OPTIONS_RANDOM_EDGES = "N\u00e1hodn\u00e9 vygenerov\u00e1n\u00ed hran";
-    public static final String THINK_TIME_NONE = "Bez limitu";
-    public static final String DIFFICULTY_EASY = "Lehk\u00e1";
-    public static final String DIFFICULTY_MEDIUM = "St\u0159edn\u00ed";
-    public static final String DIFFICULTY_HARD = "T\u011b\u017ek\u00e1";
-    public static final String BOARD_SIZE_PROMPT = "Vyber velikost hrac\u00ed plochy:";
-    public static final String BOARD_SIZE_TITLE = "Squares - velikost";
-    public static final String ADAPTER_PROMPT = "Vyber s\u00ed\u0165ov\u00fd adapt\u00e9r pro IP adresu serveru:";
-    public static final String ADAPTER_TITLE = "Squares - adapt\u00e9r";
-    public static final String NO_NETWORK_ADAPTER = "Nebyl nalezen \u017e\u00e1dn\u00fd vhodn\u00fd s\u00ed\u0165ov\u00fd adapt\u00e9r.\n\nHostitelskou hru nelze spustit.";
-    public static final String NETWORK_SETTINGS_ADAPTER = "S\u00ed\u0165ov\u00fd adapt\u00e9r:";
-    public static final String NETWORK_SETTINGS_PORT = "Port:";
-    public static final String NETWORK_SETTINGS_ACTIVE_CLIENT = "S\u00ed\u0165ov\u00fd adapt\u00e9r a port nelze m\u011bnit po p\u0159ipojen\u00ed klienta.";
-    public static final String INVALID_PORT = "Port mus\u00ed b\u00fdt \u010d\u00edslo od 1 do 65535.";
-    public static final String CURRENT_NETWORK_ADDRESS = "aktu\u00e1ln\u00ed adresa";
-    public static final String MENU_GAME = "Hra";
-    public static final String MENU_SETTINGS = "Nastaven\u00ed";
-    public static final String MENU_SWITCH_PROFILE = "P\u0159epnout profil";
-    public static final String MENU_STATISTICS = "Statistiky";
-    public static final String MENU_ONLINE_ACCOUNT = "Online \u00fa\u010det";
-    public static final String MENU_SOUNDS = "Zvuky";
-    public static final String MENU_ABOUT = "O h\u0159e";
-    public static final String MENU_EXIT = "Ukon\u010dit";
-    public static final String PROFILE_TITLE = "U\u017eivatelsk\u00fd profil";
-    public static final String PROFILE_SELECT_PROMPT = "Vyberte profil pro tuto hru:";
-    public static final String PROFILE_CONTINUE = "Pokra\u010dovat";
-    public static final String PROFILE_NEW = "Nov\u00fd";
-    public static final String PROFILE_RENAME = "P\u0159ejmenovat";
-    public static final String PROFILE_ARCHIVE = "Archivovat";
-    public static final String PROFILE_EXIT = "Konec";
-    public static final String PROFILE_NAME_PROMPT = "Jm\u00e9no profilu:";
-    public static final String PROFILE_FIRST_NAME_PROMPT = "Vytvo\u0159te prvn\u00ed profil hr\u00e1\u010de:";
-    public static final String PROFILE_NAME_REQUIRED = "Jm\u00e9no profilu nesm\u00ed b\u00fdt pr\u00e1zdn\u00e9.";
-    public static final String PROFILE_LAST_CANNOT_ARCHIVE = "Posledn\u00ed aktivn\u00ed profil nelze archivovat.";
-    public static final String PROFILE_GUEST = "Host (bez profilu)";
-    public static final String PROFILE_OPPONENT_PROMPT = "Vyberte profil modr\u00e9ho hr\u00e1\u010de:";
-    public static final String PROFILE_OPPONENT_TITLE = "Druh\u00fd hr\u00e1\u010d";
-    public static final String PROFILE_NETWORK_CHANGE_ONLY_AT_START =
-            "Profil v s\u00ed\u0165ov\u00e9 h\u0159e lze m\u011bnit jen p\u0159i spust\u011bn\u00ed aplikace.";
-    public static final String ONLINE_ACCOUNT_TITLE = "Squares - online \u00fa\u010det";
-    public static final String ONLINE_SIGNED_OUT =
-            "Nejste p\u0159ihl\u00e1\u0161eni. P\u0159ihl\u00e1\u0161en\u00ed se otev\u0159e v syst\u00e9mov\u00e9m prohl\u00ed\u017ee\u010di.";
-    public static final String ONLINE_LOGIN = "P\u0159ihl\u00e1sit";
-    public static final String ONLINE_LOGOUT = "Odhl\u00e1sit";
-    public static final String ONLINE_RETRY = "Zkusit znovu";
-    public static final String ONLINE_CLOSE = "Zav\u0159\u00edt";
-    public static final String ONLINE_LOADING = "Na\u010d\u00edt\u00e1m online \u00fa\u010det...";
-    public static final String ONLINE_BROWSER_WAIT =
-            "Dokon\u010dete p\u0159ihl\u00e1\u0161en\u00ed v syst\u00e9mov\u00e9m prohl\u00ed\u017ee\u010di...";
-    public static final String ONLINE_LOGGING_OUT = "Odhla\u0161uji...";
-    public static final String ONLINE_LOGGED_OUT = "Byli jste odhl\u00e1\u0161eni.";
-    public static final String ONLINE_SESSION_EXPIRED =
-            "P\u0159ihla\u0161ovac\u00ed relace vypr\u0161ela. P\u0159ihlaste se znovu.";
-    public static final String ONLINE_SESSION_RESTORE_FAILED =
-            "D\u0159\u00edve ulo\u017een\u00e9 p\u0159ihl\u00e1\u0161en\u00ed se nepoda\u0159ilo obnovit.";
-    public static final String ONLINE_ONBOARDING_REQUIRED =
-            "P\u0159ihl\u00e1\u0161en\u00ed prob\u011bhlo. Pro dokon\u010den\u00ed nastavte ve\u0159ejn\u00fd profil.";
-    public static final String ONLINE_HANDLE = "U\u017eivatelsk\u00e9 jm\u00e9no:";
-    public static final String ONLINE_DISPLAY_NAME = "Zobrazovan\u00e9 jm\u00e9no:";
-    public static final String ONLINE_CREATE_PROFILE = "Vytvo\u0159it profil";
-    public static final String ONLINE_SAVE_PROFILE = "Ulo\u017eit profil";
-    public static final String ONLINE_PROFILE_SAVING = "Ukl\u00e1d\u00e1m profil...";
-    public static final String ONLINE_LOCAL_PROFILE = "M\u00edstn\u00ed profil:";
-    public static final String ONLINE_PLAYER_ID = "Player ID:";
-    public static final String ONLINE_INSTALLATION_ID = "Installation ID:";
-    public static final String ONLINE_PROFILE_NOT_LINKED = "M\u00edstn\u00ed profil nen\u00ed propojen.";
-    public static final String ONLINE_PROFILE_LINKED = "M\u00edstn\u00ed profil je propojen s t\u00edmto online \u00fa\u010dtem.";
-    public static final String ONLINE_PROFILE_LINKED_ELSEWHERE =
-            "M\u00edstn\u00ed profil je propojen s jin\u00fdm online \u00fa\u010dtem.";
-    public static final String ONLINE_LINK_PROFILE = "Propojit profil";
-    public static final String ONLINE_UNLINK_PROFILE = "Odpojit profil";
-    public static final String ONLINE_LINKING_PROFILE = "Propojuji profil...";
-    public static final String ONLINE_UNLINKING_PROFILE = "Odpojuji profil...";
-    public static final String ONLINE_UNLINK_CONFIRM =
-            "Opravdu chcete odpojit aktu\u00e1ln\u00ed m\u00edstn\u00ed profil od online identity?";
-    public static final String DATABASE_ERROR_TITLE = "Lok\u00e1ln\u00ed datab\u00e1ze";
-    public static final String DATABASE_NEWER_SCHEMA = "Datab\u00e1ze poch\u00e1z\u00ed z nov\u011bj\u0161\u00ed verze aplikace.";
-    public static final String DATABASE_INITIALIZATION_FAILED = "Inicializace lok\u00e1ln\u00ed datab\u00e1ze selhala.";
-    public static final String DATABASE_DIRECTORY_CREATE_FAILED = "Nelze vytvo\u0159it slo\u017eku lok\u00e1ln\u00ed datab\u00e1ze.";
-    public static final String DATABASE_SQLITE_DRIVER_MISSING = "V aplikaci chyb\u00ed ovlada\u010d SQLite.";
-    public static final String DATABASE_READ_FAILED = "Na\u010dten\u00ed lok\u00e1ln\u00ed datab\u00e1ze selhalo.";
-    public static final String GAME_RESULT_SAVE_FAILED = "Ulo\u017een\u00ed v\u00fdsledku hry selhalo.";
-    public static final String PROFILE_LIST_LOAD_FAILED = "Na\u010dten\u00ed profil\u016f selhalo.";
-    public static final String PROFILE_SELECTED_LOAD_FAILED = "Na\u010dten\u00ed vybran\u00e9ho profilu selhalo.";
-    public static final String PROFILE_NOT_FOUND = "Profil nebyl nalezen.";
-    public static final String PROFILE_ARCHIVE_FAILED = "Archivace profilu selhala.";
-    public static final String PROFILE_ARCHIVED_CANNOT_SELECT = "Archivovan\u00fd profil nelze vybrat.";
-    public static final String PROFILE_SELECTION_SAVE_FAILED = "V\u00fdb\u011br profilu se nepoda\u0159ilo ulo\u017eit.";
-    public static final String PROFILE_LOAD_FAILED = "Na\u010dten\u00ed profilu selhalo.";
-    public static final String PROFILE_DUPLICATE_NAME = "Profil s t\u00edmto jm\u00e9nem ji\u017e existuje.";
-    public static final String PROFILE_SAVE_FAILED = "Ulo\u017een\u00ed profilu selhalo.";
-    public static final String INSTALLATION_ID_FAILED = "Identitu instalace se nepoda\u0159ilo na\u010d\u00edst nebo vytvo\u0159it.";
-    public static final String PROFILE_LINK_LOAD_FAILED = "Propojen\u00ed profilu se nepoda\u0159ilo na\u010d\u00edst.";
-    public static final String PROFILE_LINK_SAVE_FAILED = "Propojen\u00ed profilu se nepoda\u0159ilo ulo\u017eit.";
-    public static final String PROFILE_UNLINK_FAILED = "Propojen\u00ed profilu se nepoda\u0159ilo odstranit.";
-    public static final String PROFILE_LINK_DIFFERENT_ACCOUNT =
-            "Tento m\u00edstn\u00ed profil je ji\u017e propojen s jin\u00fdm online \u00fa\u010dtem. Nejprve jej odpojte.";
-    public static final String STATISTICS_TITLE = "Statistiky a m\u00edstn\u00ed \u017eeb\u0159\u00ed\u010dek";
-    public static final String STATISTICS_LOCAL_LEADERBOARD = "M\u00edstn\u00ed \u017eeb\u0159\u00ed\u010dek";
-    public static final String STATISTICS_CURRENT_PROFILE_MISSING =
-            "Pro aktu\u00e1ln\u00ed profil nejsou dostupn\u00e1 data.";
-    public static final String STATISTICS_ARCHIVED_PROFILE_SUFFIX = " (archivovan\u00fd)";
-    public static final String STATISTICS_LOAD_FAILED = "Na\u010dten\u00ed statistik selhalo.";
-    public static final String STATISTICS_COLUMN_POSITION = "Po\u0159ad\u00ed";
-    public static final String STATISTICS_COLUMN_PROFILE = "Profil";
-    public static final String STATISTICS_COLUMN_GAMES = "Hry";
-    public static final String STATISTICS_COLUMN_WINS = "V\u00fdhry";
-    public static final String STATISTICS_COLUMN_DRAWS = "Rem\u00edzy";
-    public static final String STATISTICS_COLUMN_LOSSES = "Prohry";
-    public static final String STATISTICS_COLUMN_SCORE = "Sk\u00f3re";
-    public static final String STATISTICS_COLUMN_WIN_PERCENTAGE = "% v\u00fdher";
-    public static final String ABOUT_TITLE = "O h\u0159e";
-    public static final String CHANGE_SIZE_TITLE = "Zm\u011bna velikosti";
-    public static final String OPTION_YES = "Ano";
-    public static final String OPTION_NO = "Ne";
-    public static final String OPTION_OK = "OK";
-    public static final String OPTION_CANCEL = "Storno";
+    private static Language language;
+    private static Language preferredLanguage;
+    private static ResourceBundle bundle;
 
-    public static final String RESTART_BUTTON = "Restart";
-    public static final String RESTART_TITLE = "Restart hry";
-    public static final String RESTART_CONFIRM = "Chcete restartovat hru?";
-    public static final String RESTART_WAITING_FOR_CLIENT = "Restart bude dostupn\u00fd po p\u0159ipojen\u00ed klienta.";
-    public static final String RESTART_REQUEST_SENT = "\u017d\u00e1dost o restart byla odesl\u00e1na hostiteli.";
-    public static final String RESTART_REQUEST_FROM_CLIENT = "P\u0159ipojen\u00fd hr\u00e1\u010d si p\u0159eje restartovat hru.\n\nPovolit restart?";
-    public static final String RESTART_REQUEST_FROM_HOST = "Hostitel si p\u0159eje restartovat hru.\n\nPovolit restart?";
-    public static final String RESTART_DECLINED_BY_CLIENT = "Klient restart hry nepotvrdil.";
-    public static final String RESTART_DECLINED_BY_HOST = "Hostitel restart hry nepotvrdil.";
-    public static final String RESTART_HOST_BUSY = "Hostitel m\u00e1 pr\u00e1v\u011b otev\u0159en\u00e9 nastaven\u00ed hry.\n\nZkuste restart pozd\u011bji.";
-
-    public static final String GAME_OVER_TITLE = "Konec hry";
-    public static final String NEW_GAME_PROMPT = "Chcete pokra\u010dovat novou hrou?";
-    public static final String NETWORK_GAME_TITLE = "S\u00ed\u0165ov\u00e1 hra";
-    public static final String NETWORK_HOST_ENDED = "Hostitel ukon\u010dil s\u00ed\u0165ovou hru.";
-    public static final String NETWORK_CONNECT_FAILED = "Nepoda\u0159ilo se p\u0159ipojit nebo spojen\u00ed spadlo.";
-    public static final String NETWORK_INCOMPATIBLE_BUILD = "Klient a hostitel mus\u00ed m\u00edt stejn\u00fd build aplikace.";
-    public static final String NETWORK_INCOMPATIBLE_PROTOCOL = "Hostitel nepou\u017e\u00edv\u00e1 kompatibiln\u00ed verzi s\u00ed\u0165ov\u00e9 hry.";
-    public static final String INVALID_SIZE_MESSAGE = "Neplatn\u00e1 zpr\u00e1va velikosti plochy: ";
-    public static final String BUILD_INFO_PREFIX = "Build: ";
-    public static final String BUILD_FILE_TIME_PREFIX = "soubor: ";
-    public static final String BUILD_INFO_UNKNOWN = "nezn\u00e1m\u00fd";
-    public static final String HELP_TEXT = "C\u00edlem hry je uzav\u00edrat \u010dtvere\u010dky.\n"
-            + "Hr\u00e1\u010di se st\u0159\u00eddaj\u00ed v ozna\u010dov\u00e1n\u00ed hran.\n"
-            + "Kdo uzav\u0159e \u010dtvere\u010dek, z\u00edsk\u00e1 bod a hraje znovu.\n"
-            + "Vyhr\u00e1v\u00e1 hr\u00e1\u010d s vy\u0161\u0161\u00edm po\u010dtem bod\u016f.";
+    static {
+        applyLanguage(loadLanguage());
+    }
 
     private Messages() {
     }
 
+    public static Language language() {
+        return language;
+    }
+
+    public static Language preferredLanguage() {
+        return preferredLanguage;
+    }
+
+    /** Stores a language choice that will be applied on the next application start. */
+    public static void saveLanguageForNextStart(Language selected) {
+        if (selected == null) {
+            return;
+        }
+        try {
+            PREFERENCES.put(LANGUAGE_PREFERENCE, selected.code());
+            preferredLanguage = selected;
+        } catch (SecurityException ignored) {
+            // The application remains usable with the current language.
+        }
+    }
+
+    static void useLanguageForTests(Language selected) {
+        applyLanguage(selected);
+    }
+
+    public static String text(String key, Object... arguments) {
+        String pattern = bundle.getString(key);
+        return arguments.length == 0
+                ? pattern : new MessageFormat(pattern, language.locale()).format(arguments);
+    }
+
     public static String hostInfo(String address, int port, int rows, int columns) {
-        return "IP: " + address + ":" + port + "\n"
-                + "Plocha: " + boardSize(rows, columns);
+        return text("HOST_INFO", address, Integer.valueOf(port), boardSize(rows, columns));
     }
 
     public static String onlineSignedIn(String displayName, String handle) {
-        return "P\u0159ihl\u00e1\u0161en jako " + displayName + " (@" + handle + ").";
+        return text("ONLINE_SIGNED_IN", displayName, handle);
     }
 
     public static String clientInfo(String host, int port, int rows, int columns) {
-        return "IP: " + host + ":" + port + "\n"
-                + "Plocha: " + boardSize(rows, columns);
+        return text("CLIENT_INFO", host, Integer.valueOf(port), boardSize(rows, columns));
     }
 
     public static String localInfo(int rows, int columns, String redPlayerName, String bluePlayerName) {
-        return "IP: lok\u00e1ln\u00ed hra\n"
-                + "Plocha: " + boardSize(rows, columns) + "\n"
-                + "Status: " + redPlayerName + " (\u010derven\u00fd hr\u00e1\u010d) vs. "
-                + bluePlayerName + " (modr\u00fd hr\u00e1\u010d)";
+        return text("LOCAL_INFO", boardSize(rows, columns), redPlayerName, bluePlayerName);
     }
 
     public static String computerInfo(int rows, int columns, String redPlayerName, String difficulty) {
-        return "IP: lok\u00e1ln\u00ed hra\n"
-                + "Plocha: " + boardSize(rows, columns) + "\n"
-                + "Status: " + redPlayerName + " (\u010derven\u00fd hr\u00e1\u010d) vs. CPU - "
-                + difficulty.toLowerCase(java.util.Locale.ROOT)
-                + " obt\u00ed\u017enost (modr\u00fd hr\u00e1\u010d)";
+        return text("COMPUTER_INFO", boardSize(rows, columns), redPlayerName,
+                difficulty.toLowerCase(language.locale()));
     }
 
     public static String waitingForClient() {
-        return "Status: \u010dek\u00e1m na klienta...";
+        return text("WAITING_FOR_CLIENT");
     }
 
     public static String networkPlayersStatus(String redPlayerName, String bluePlayerName) {
-        return "Status: " + redPlayerName + " (\u010derven\u00fd hr\u00e1\u010d) vs. "
-                + bluePlayerName + " (modr\u00fd hr\u00e1\u010d)";
+        return text("NETWORK_PLAYERS_STATUS", redPlayerName, bluePlayerName);
     }
 
     public static String settingsRestartConfirm() {
-        return "Zm\u011bna nastaven\u00ed restartuje aktu\u00e1ln\u00ed hru.\n\nChcete pokra\u010dovat?";
+        return text("SETTINGS_RESTART_CONFIRM");
     }
 
     public static String buildMismatch(String hostBuild, String clientBuild) {
-        return NETWORK_INCOMPATIBLE_BUILD + "\n\n"
-                + "Verze hostitele: " + hostBuild + "\n"
-                + "Verze klienta: " + clientBuild;
+        return text("BUILD_MISMATCH", hostBuild, clientBuild);
     }
 
     public static String profileArchiveConfirm(String displayName) {
-        return "Archivovat profil \u201e" + displayName + "\u201c?\n\n"
-                + "Dosavadn\u00ed v\u00fdsledky z\u016fstanou zachov\u00e1ny.";
+        return text("PROFILE_ARCHIVE_CONFIRM", displayName);
     }
 
     public static String statisticsCurrentProfile(String displayName) {
-        return "Aktu\u00e1ln\u00ed profil: " + displayName;
+        return text("STATISTICS_CURRENT_PROFILE", displayName);
     }
 
     public static String statisticsRecord(long games, long wins, long draws, long losses) {
-        return "Hry: " + games + "   V\u00fdhry: " + wins + "   Rem\u00edzy: " + draws
-                + "   Prohry: " + losses;
+        return text("STATISTICS_RECORD", Long.valueOf(games), Long.valueOf(wins),
+                Long.valueOf(draws), Long.valueOf(losses));
     }
 
     public static String statisticsScore(long totalScore, double winPercentage) {
-        return "Celkov\u00e9 sk\u00f3re: " + totalScore + "   \u00dasp\u011b\u0161nost v\u00fdher: "
-                + formatWinPercentage(winPercentage);
+        return text("STATISTICS_SCORE", Long.valueOf(totalScore), formatWinPercentage(winPercentage));
     }
 
     public static String statisticsProfileName(PlayerProfile profile) {
-        return profile.displayName()
-                + (profile.archived() ? STATISTICS_ARCHIVED_PROFILE_SUFFIX : "");
+        return profile.displayName() + (profile.archived() ? STATISTICS_ARCHIVED_PROFILE_SUFFIX : "");
     }
 
     public static String formatWinPercentage(double winPercentage) {
-        return String.format(java.util.Locale.forLanguageTag("cs-CZ"), "%.1f %%", winPercentage);
+        return String.format(language.locale(), "%.1f %%", Double.valueOf(winPercentage));
     }
 
     public static String databaseInitializationFailed(String detail) {
-        return "Lok\u00e1ln\u00ed datab\u00e1zi se nepoda\u0159ilo otev\u0159\u00edt.\n\n" + detail;
+        return text("DATABASE_INITIALIZATION_FAILED_DETAIL", detail);
     }
 
     public static String databaseSaveFailed(String detail) {
-        return "V\u00fdsledek hry se nepoda\u0159ilo ulo\u017eit. Hru lze d\u00e1le pou\u017e\u00edvat.\n\n" + detail;
+        return text("DATABASE_SAVE_FAILED_DETAIL", detail);
+    }
+
+    public static String onlineSyncStatus(SyncSummary summary) {
+        return text("ONLINE_SYNC_STATUS_FORMAT", Long.valueOf(summary.pending()),
+                Long.valueOf(summary.sending()), Long.valueOf(summary.sent()),
+                Long.valueOf(summary.failed()), Long.valueOf(summary.pendingPeer()),
+                Long.valueOf(summary.matched()), Long.valueOf(summary.conflicted()));
     }
 
     public static String aboutText() {
-        return APP_TITLE + "\n"
-                + BuildInfo.displayText() + "\n\n"
-                + HELP_TEXT;
+        return APP_TITLE + "\n" + BuildInfo.displayText() + "\n\n" + HELP_TEXT;
     }
 
     public static String redWins(int redScore, int blueScore) {
-        return "\u010cerven\u00fd hr\u00e1\u010d v\u00edt\u011bz\u00ed " + redScore + ":" + blueScore + ".";
+        return text("RED_WINS", Integer.valueOf(redScore), Integer.valueOf(blueScore));
     }
 
     public static String blueWins(int blueScore, int redScore) {
-        return "Modr\u00fd hr\u00e1\u010d v\u00edt\u011bz\u00ed " + blueScore + ":" + redScore + ".";
+        return text("BLUE_WINS", Integer.valueOf(blueScore), Integer.valueOf(redScore));
     }
 
     public static String draw(int redScore, int blueScore) {
-        return "Rem\u00edza " + redScore + ":" + blueScore + ".";
+        return text("DRAW", Integer.valueOf(redScore), Integer.valueOf(blueScore));
     }
 
     public static String gameOver(GameResult result) {
         if (result.finishReason() == GameResult.FinishReason.TIME_LIMIT) {
             return result.redPlayer().outcome() == PlayerResult.Outcome.LOSS
-                    ? redLostOnTime()
-                    : blueLostOnTime();
+                    ? redLostOnTime() : blueLostOnTime();
         }
-
         int redScore = result.redPlayer().score();
         int blueScore = result.bluePlayer().score();
-
         if (result.redPlayer().outcome() == PlayerResult.Outcome.WIN) {
             return redWins(redScore, blueScore);
         }
-
         if (result.bluePlayer().outcome() == PlayerResult.Outcome.WIN) {
             return blueWins(blueScore, redScore);
         }
-
         return draw(redScore, blueScore);
     }
 
     public static String redLostOnTime() {
-        return "\u010cerven\u00e9mu hr\u00e1\u010di vypr\u0161el \u010das. Modr\u00fd hr\u00e1\u010d v\u00edt\u011bz\u00ed p\u00e1dem na \u010das.";
+        return text("RED_LOST_ON_TIME");
     }
 
     public static String blueLostOnTime() {
-        return "Modr\u00e9mu hr\u00e1\u010di vypr\u0161el \u010das. \u010cerven\u00fd hr\u00e1\u010d v\u00edt\u011bz\u00ed p\u00e1dem na \u010das.";
+        return text("BLUE_LOST_ON_TIME");
+    }
+
+    private static Language loadLanguage() {
+        String stored = null;
+        try {
+            stored = PREFERENCES.get(LANGUAGE_PREFERENCE, null);
+        } catch (SecurityException ignored) {
+            // Use the operating-system language below.
+        }
+        Language selected = Language.fromCode(stored);
+        if (selected != null) {
+            return selected;
+        }
+        return "cs".equalsIgnoreCase(Locale.getDefault().getLanguage())
+                ? Language.CZECH : Language.ENGLISH;
+    }
+
+    private static void applyLanguage(Language selected) {
+        language = selected == null ? Language.CZECH : selected;
+        preferredLanguage = language;
+        Locale.setDefault(language.locale());
+        bundle = ResourceBundle.getBundle(
+                BUNDLE_NAME, language.locale(), new Utf8ResourceControl());
+        reloadConstants();
+    }
+
+    private static void reloadConstants() {
+        APP_TITLE = text("APP_TITLE"); PLAYER_RED = text("PLAYER_RED");
+        PLAYER_BLUE = text("PLAYER_BLUE"); PLAYER_GUEST = text("PLAYER_GUEST");
+        PLAYER_CPU = text("PLAYER_CPU"); WINDOW_HOST = text("WINDOW_HOST");
+        WINDOW_CLIENT = text("WINDOW_CLIENT"); WINDOW_LOCAL = text("WINDOW_LOCAL");
+        WINDOW_COMPUTER = text("WINDOW_COMPUTER"); GAME_MODE_LOCAL = text("GAME_MODE_LOCAL");
+        GAME_MODE_COMPUTER = text("GAME_MODE_COMPUTER"); GAME_MODE_HOST = text("GAME_MODE_HOST");
+        GAME_MODE_JOIN = text("GAME_MODE_JOIN"); GAME_MODE_PROMPT = text("GAME_MODE_PROMPT");
+        HOST_ADDRESS_PROMPT = text("HOST_ADDRESS_PROMPT"); CONNECTING_TO_HOST = text("CONNECTING_TO_HOST");
+        CHAT_HOST_TITLE = text("CHAT_HOST_TITLE"); CHAT_CLIENT_TITLE = text("CHAT_CLIENT_TITLE");
+        CHAT_SEND = text("CHAT_SEND"); CHAT_EMOTICONS = text("CHAT_EMOTICONS");
+        CHAT_YOU = text("CHAT_YOU"); CHAT_HOST = text("CHAT_HOST"); CHAT_CLIENT = text("CHAT_CLIENT");
+        GAME_OPTIONS_TITLE = text("GAME_OPTIONS_TITLE"); GAME_OPTIONS_BOARD_SIZE = text("GAME_OPTIONS_BOARD_SIZE");
+        GAME_OPTIONS_THINK_TIME = text("GAME_OPTIONS_THINK_TIME"); GAME_OPTIONS_DIFFICULTY = text("GAME_OPTIONS_DIFFICULTY");
+        GAME_OPTIONS_RANDOM_EDGES = text("GAME_OPTIONS_RANDOM_EDGES"); THINK_TIME_NONE = text("THINK_TIME_NONE");
+        DIFFICULTY_EASY = text("DIFFICULTY_EASY"); DIFFICULTY_MEDIUM = text("DIFFICULTY_MEDIUM");
+        DIFFICULTY_HARD = text("DIFFICULTY_HARD"); BOARD_SIZE_PROMPT = text("BOARD_SIZE_PROMPT");
+        BOARD_SIZE_TITLE = text("BOARD_SIZE_TITLE"); ADAPTER_PROMPT = text("ADAPTER_PROMPT");
+        ADAPTER_TITLE = text("ADAPTER_TITLE"); NO_NETWORK_ADAPTER = text("NO_NETWORK_ADAPTER");
+        NETWORK_SETTINGS_ADAPTER = text("NETWORK_SETTINGS_ADAPTER"); NETWORK_SETTINGS_PORT = text("NETWORK_SETTINGS_PORT");
+        NETWORK_SETTINGS_ACTIVE_CLIENT = text("NETWORK_SETTINGS_ACTIVE_CLIENT"); INVALID_PORT = text("INVALID_PORT");
+        CURRENT_NETWORK_ADDRESS = text("CURRENT_NETWORK_ADDRESS"); MENU_GAME = text("MENU_GAME");
+        MENU_SETTINGS = text("MENU_SETTINGS"); MENU_SWITCH_PROFILE = text("MENU_SWITCH_PROFILE");
+        MENU_STATISTICS = text("MENU_STATISTICS"); MENU_ONLINE_ACCOUNT = text("MENU_ONLINE_ACCOUNT");
+        MENU_SOUNDS = text("MENU_SOUNDS"); MENU_LANGUAGE = text("MENU_LANGUAGE");
+        LANGUAGE_CZECH = text("LANGUAGE_CZECH"); LANGUAGE_ENGLISH = text("LANGUAGE_ENGLISH");
+        LANGUAGE_CHANGE_TITLE = text("LANGUAGE_CHANGE_TITLE"); LANGUAGE_CHANGE_RESTART = text("LANGUAGE_CHANGE_RESTART");
+        MENU_ABOUT = text("MENU_ABOUT"); MENU_EXIT = text("MENU_EXIT"); PROFILE_TITLE = text("PROFILE_TITLE");
+        PROFILE_SELECT_PROMPT = text("PROFILE_SELECT_PROMPT"); PROFILE_CONTINUE = text("PROFILE_CONTINUE");
+        PROFILE_NEW = text("PROFILE_NEW"); PROFILE_RENAME = text("PROFILE_RENAME");
+        PROFILE_ARCHIVE = text("PROFILE_ARCHIVE"); PROFILE_EXIT = text("PROFILE_EXIT");
+        PROFILE_NAME_PROMPT = text("PROFILE_NAME_PROMPT"); PROFILE_FIRST_NAME_PROMPT = text("PROFILE_FIRST_NAME_PROMPT");
+        PROFILE_NAME_REQUIRED = text("PROFILE_NAME_REQUIRED"); PROFILE_LAST_CANNOT_ARCHIVE = text("PROFILE_LAST_CANNOT_ARCHIVE");
+        PROFILE_GUEST = text("PROFILE_GUEST"); PROFILE_OPPONENT_PROMPT = text("PROFILE_OPPONENT_PROMPT");
+        PROFILE_OPPONENT_TITLE = text("PROFILE_OPPONENT_TITLE"); PROFILE_NETWORK_CHANGE_ONLY_AT_START = text("PROFILE_NETWORK_CHANGE_ONLY_AT_START");
+        ONLINE_ACCOUNT_TITLE = text("ONLINE_ACCOUNT_TITLE"); ONLINE_SIGNED_OUT = text("ONLINE_SIGNED_OUT");
+        ONLINE_LOGIN = text("ONLINE_LOGIN"); ONLINE_LOGOUT = text("ONLINE_LOGOUT"); ONLINE_RETRY = text("ONLINE_RETRY");
+        ONLINE_CLOSE = text("ONLINE_CLOSE"); ONLINE_LOADING = text("ONLINE_LOADING"); ONLINE_BROWSER_WAIT = text("ONLINE_BROWSER_WAIT");
+        ONLINE_LOGGING_OUT = text("ONLINE_LOGGING_OUT"); ONLINE_LOGGED_OUT = text("ONLINE_LOGGED_OUT");
+        ONLINE_SESSION_EXPIRED = text("ONLINE_SESSION_EXPIRED"); ONLINE_SESSION_RESTORE_FAILED = text("ONLINE_SESSION_RESTORE_FAILED");
+        ONLINE_ONBOARDING_REQUIRED = text("ONLINE_ONBOARDING_REQUIRED"); ONLINE_HANDLE = text("ONLINE_HANDLE");
+        ONLINE_DISPLAY_NAME = text("ONLINE_DISPLAY_NAME"); ONLINE_CREATE_PROFILE = text("ONLINE_CREATE_PROFILE");
+        ONLINE_SAVE_PROFILE = text("ONLINE_SAVE_PROFILE"); ONLINE_PROFILE_SAVING = text("ONLINE_PROFILE_SAVING");
+        ONLINE_LOCAL_PROFILE = text("ONLINE_LOCAL_PROFILE"); ONLINE_PLAYER_ID = text("ONLINE_PLAYER_ID");
+        ONLINE_INSTALLATION_ID = text("ONLINE_INSTALLATION_ID"); ONLINE_PROFILE_NOT_LINKED = text("ONLINE_PROFILE_NOT_LINKED");
+        ONLINE_PROFILE_LINKED = text("ONLINE_PROFILE_LINKED"); ONLINE_PROFILE_LINKED_ELSEWHERE = text("ONLINE_PROFILE_LINKED_ELSEWHERE");
+        ONLINE_LINK_PROFILE = text("ONLINE_LINK_PROFILE"); ONLINE_UNLINK_PROFILE = text("ONLINE_UNLINK_PROFILE");
+        ONLINE_LINKING_PROFILE = text("ONLINE_LINKING_PROFILE"); ONLINE_UNLINKING_PROFILE = text("ONLINE_UNLINKING_PROFILE");
+        ONLINE_UNLINK_CONFIRM = text("ONLINE_UNLINK_CONFIRM"); ONLINE_SYNC_STATUS = text("ONLINE_SYNC_STATUS");
+        ONLINE_SYNC_NOW = text("ONLINE_SYNC_NOW"); ONLINE_SYNCING = text("ONLINE_SYNCING");
+        DATABASE_ERROR_TITLE = text("DATABASE_ERROR_TITLE"); DATABASE_NEWER_SCHEMA = text("DATABASE_NEWER_SCHEMA");
+        DATABASE_INITIALIZATION_FAILED = text("DATABASE_INITIALIZATION_FAILED"); DATABASE_DIRECTORY_CREATE_FAILED = text("DATABASE_DIRECTORY_CREATE_FAILED");
+        DATABASE_SQLITE_DRIVER_MISSING = text("DATABASE_SQLITE_DRIVER_MISSING"); DATABASE_READ_FAILED = text("DATABASE_READ_FAILED");
+        GAME_RESULT_SAVE_FAILED = text("GAME_RESULT_SAVE_FAILED"); SYNC_STATE_LOAD_FAILED = text("SYNC_STATE_LOAD_FAILED");
+        SYNC_STATE_SAVE_FAILED = text("SYNC_STATE_SAVE_FAILED"); PROFILE_LIST_LOAD_FAILED = text("PROFILE_LIST_LOAD_FAILED");
+        PROFILE_SELECTED_LOAD_FAILED = text("PROFILE_SELECTED_LOAD_FAILED"); PROFILE_NOT_FOUND = text("PROFILE_NOT_FOUND");
+        PROFILE_ARCHIVE_FAILED = text("PROFILE_ARCHIVE_FAILED"); PROFILE_ARCHIVED_CANNOT_SELECT = text("PROFILE_ARCHIVED_CANNOT_SELECT");
+        PROFILE_SELECTION_SAVE_FAILED = text("PROFILE_SELECTION_SAVE_FAILED"); PROFILE_LOAD_FAILED = text("PROFILE_LOAD_FAILED");
+        PROFILE_DUPLICATE_NAME = text("PROFILE_DUPLICATE_NAME"); PROFILE_SAVE_FAILED = text("PROFILE_SAVE_FAILED");
+        INSTALLATION_ID_FAILED = text("INSTALLATION_ID_FAILED"); PROFILE_LINK_LOAD_FAILED = text("PROFILE_LINK_LOAD_FAILED");
+        PROFILE_LINK_SAVE_FAILED = text("PROFILE_LINK_SAVE_FAILED"); PROFILE_UNLINK_FAILED = text("PROFILE_UNLINK_FAILED");
+        PROFILE_LINK_DIFFERENT_ACCOUNT = text("PROFILE_LINK_DIFFERENT_ACCOUNT"); STATISTICS_TITLE = text("STATISTICS_TITLE");
+        STATISTICS_LOCAL_LEADERBOARD = text("STATISTICS_LOCAL_LEADERBOARD"); STATISTICS_CURRENT_PROFILE_MISSING = text("STATISTICS_CURRENT_PROFILE_MISSING");
+        STATISTICS_ARCHIVED_PROFILE_SUFFIX = text("STATISTICS_ARCHIVED_PROFILE_SUFFIX"); STATISTICS_LOAD_FAILED = text("STATISTICS_LOAD_FAILED");
+        STATISTICS_COLUMN_POSITION = text("STATISTICS_COLUMN_POSITION"); STATISTICS_COLUMN_PROFILE = text("STATISTICS_COLUMN_PROFILE");
+        STATISTICS_COLUMN_GAMES = text("STATISTICS_COLUMN_GAMES"); STATISTICS_COLUMN_WINS = text("STATISTICS_COLUMN_WINS");
+        STATISTICS_COLUMN_DRAWS = text("STATISTICS_COLUMN_DRAWS"); STATISTICS_COLUMN_LOSSES = text("STATISTICS_COLUMN_LOSSES");
+        STATISTICS_COLUMN_SCORE = text("STATISTICS_COLUMN_SCORE"); STATISTICS_COLUMN_WIN_PERCENTAGE = text("STATISTICS_COLUMN_WIN_PERCENTAGE");
+        ABOUT_TITLE = text("ABOUT_TITLE"); CHANGE_SIZE_TITLE = text("CHANGE_SIZE_TITLE"); OPTION_YES = text("OPTION_YES");
+        OPTION_NO = text("OPTION_NO"); OPTION_OK = text("OPTION_OK"); OPTION_CANCEL = text("OPTION_CANCEL");
+        RESTART_BUTTON = text("RESTART_BUTTON"); RESTART_TITLE = text("RESTART_TITLE"); RESTART_CONFIRM = text("RESTART_CONFIRM");
+        RESTART_WAITING_FOR_CLIENT = text("RESTART_WAITING_FOR_CLIENT"); RESTART_REQUEST_SENT = text("RESTART_REQUEST_SENT");
+        RESTART_REQUEST_FROM_CLIENT = text("RESTART_REQUEST_FROM_CLIENT"); RESTART_REQUEST_FROM_HOST = text("RESTART_REQUEST_FROM_HOST");
+        RESTART_DECLINED_BY_CLIENT = text("RESTART_DECLINED_BY_CLIENT"); RESTART_DECLINED_BY_HOST = text("RESTART_DECLINED_BY_HOST");
+        RESTART_HOST_BUSY = text("RESTART_HOST_BUSY"); GAME_OVER_TITLE = text("GAME_OVER_TITLE"); NEW_GAME_PROMPT = text("NEW_GAME_PROMPT");
+        NETWORK_GAME_TITLE = text("NETWORK_GAME_TITLE"); NETWORK_HOST_ENDED = text("NETWORK_HOST_ENDED");
+        NETWORK_CONNECT_FAILED = text("NETWORK_CONNECT_FAILED"); NETWORK_INCOMPATIBLE_BUILD = text("NETWORK_INCOMPATIBLE_BUILD");
+        NETWORK_INCOMPATIBLE_PROTOCOL = text("NETWORK_INCOMPATIBLE_PROTOCOL"); INVALID_SIZE_MESSAGE = text("INVALID_SIZE_MESSAGE");
+        BUILD_INFO_PREFIX = text("BUILD_INFO_PREFIX"); BUILD_FILE_TIME_PREFIX = text("BUILD_FILE_TIME_PREFIX");
+        BUILD_INFO_UNKNOWN = text("BUILD_INFO_UNKNOWN"); HELP_TEXT = text("HELP_TEXT");
     }
 
     private static String boardSize(int rows, int columns) {
         return rows + "x" + columns;
+    }
+
+    public enum Language {
+        CZECH("cs", Locale.forLanguageTag("cs-CZ")),
+        ENGLISH("en", Locale.ENGLISH);
+
+        private final String code;
+        private final Locale locale;
+
+        Language(String code, Locale locale) {
+            this.code = code;
+            this.locale = locale;
+        }
+
+        public String code() {
+            return code;
+        }
+
+        public Locale locale() {
+            return locale;
+        }
+
+        static Language fromCode(String code) {
+            for (Language candidate : values()) {
+                if (candidate.code.equalsIgnoreCase(code == null ? "" : code)) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
+    }
+
+    private static final class Utf8ResourceControl extends ResourceBundle.Control {
+        @Override
+        public ResourceBundle newBundle(String baseName, Locale locale, String format,
+                                        ClassLoader loader, boolean reload)
+                throws IOException {
+            if (!"java.properties".equals(format)) {
+                return null;
+            }
+            String bundleName = toBundleName(baseName, locale);
+            String resourceName = toResourceName(bundleName, "properties");
+            URL resource = loader.getResource(resourceName);
+            if (resource == null) {
+                return null;
+            }
+            URLConnection connection = resource.openConnection();
+            if (reload) {
+                connection.setUseCaches(false);
+            }
+            try (InputStream input = connection.getInputStream();
+                 InputStreamReader reader = new InputStreamReader(input, "UTF-8")) {
+                return new PropertyResourceBundle(reader);
+            }
+        }
     }
 }

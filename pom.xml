@@ -5,16 +5,16 @@
 
     <groupId>cz.humblej</groupId>
     <artifactId>squares-parent</artifactId>
-    <version>4.4.0</version>
+    <version>4.5.0</version>
     <packaging>pom</packaging>
     <name>Squares parent</name>
 
     <modules>
         <module>squares-core</module>
-        <module>humblej-identity-model</module>
-        <module>humblej-identity-client</module>
-        <module>humblej-identity-desktop</module>
-        <module>humblej-identity-server</module>
+        <module>identity-model</module>
+        <module>identity-client</module>
+        <module>identity-desktop</module>
+        <module>identity-server</module>
         <module>squares-desktop</module>
         <module>squares-server</module>
     </modules>

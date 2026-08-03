@@ -269,17 +269,13 @@ lokalizovaneho `detail`.
 - Audit uchovava duvod zmeny verification/ranked stavu.
 - Smazany ucet se ve starych hrach anonymizuje bez poruseni integrity vysledku.
 
-## 9. Implementacni poradi
+## 9. Stav implementace
 
-1. Zalozit modul `squares-server` (Java 21, Spring Boot, PostgreSQL).
-2. Implementovat OIDC validaci, `accounts`, `account_identities`, `/me` a profil.
-3. Implementovat registraci instalace.
-4. Implementovat idempotentni game submissions a serverovou validaci
-   `GameResult`.
-5. Pridat migraci lokalni SQLite pro vazbu profilu a obsluhu outboxu.
-6. Napojit Windows klienta a otestovat retry/offline scenare.
-7. Implementovat casual zebricek.
-8. Teprve nad stabilnim API vytvorit Android klienta.
+Ve verzi 4.5.0 jsou hotove serverove moduly, OIDC identita, registrace
+instalace, idempotentni game submissions, serverova validace `GameResult`,
+lokalni SQLite outbox a Windows klient vcetne retry/offline stavu.
+
+Zbyva implementovat casual zebricek a pote Android klienta nad stabilnim API.
 
 Mimo rozsah v1 jsou hesla spravovana Squares serverem, WebSocket matchmaking,
 serverove rizena online partie, ranked rating, sezony, moderacni UI a automaticke

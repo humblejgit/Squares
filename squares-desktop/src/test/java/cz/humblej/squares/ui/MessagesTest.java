@@ -2,6 +2,8 @@ package cz.humblej.squares.ui;
 
 import cz.humblej.squares.model.GameResult;
 import cz.humblej.squares.model.PlayerResult;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.time.Instant;
@@ -10,9 +12,22 @@ import java.util.UUID;
 import static org.junit.Assert.assertEquals;
 
 public class MessagesTest {
+    private Messages.Language originalLanguage;
+
+    @Before
+    public void useCzechMessages() {
+        originalLanguage = Messages.language();
+        Messages.useLanguageForTests(Messages.Language.CZECH);
+    }
+
+    @After
+    public void restoreLanguage() {
+        Messages.useLanguageForTests(originalLanguage);
+    }
+
     @Test
     public void networkProfileChangeExplainsStartupRestriction() {
-        assertEquals("Profil v s\u00ed\u0165ov\u00e9 h\u0159e lze m\u011bnit jen p\u0159i spust\u011bn\u00ed aplikace.",
+        assertEquals("Profil v s\u00ed\u0165ov\u00e9 h\u0159e lze m\u011bnit jen p\u0159i spu\u0161t\u011bn\u00ed aplikace.",
                 Messages.PROFILE_NETWORK_CHANGE_ONLY_AT_START);
     }
 
@@ -47,6 +62,20 @@ public class MessagesTest {
         assertEquals("50,0 %", Messages.formatWinPercentage(50.0));
         assertEquals("Hry: 4   V\u00fdhry: 2   Rem\u00edzy: 1   Prohry: 1",
                 Messages.statisticsRecord(4, 2, 1, 1));
+    }
+
+    @Test
+    public void loadsEnglishBundle() {
+        Messages.useLanguageForTests(Messages.Language.ENGLISH);
+
+        assertEquals("Statistics", Messages.MENU_STATISTICS);
+        assertEquals("Status: banana (red player) vs. apple (blue player)",
+                Messages.networkPlayersStatus("banana", "apple"));
+        assertEquals("50.0 %", Messages.formatWinPercentage(50.0));
+        assertEquals("Pending: 1   Sending: 2   Sent: 3   Failed: 4   "
+                        + "Waiting for peer: 5   Matched: 6   Conflict: 7",
+                Messages.onlineSyncStatus(new cz.humblej.squares.persistence.SyncSummary(
+                        1, 2, 3, 4, 5, 6, 7)));
     }
 
     @Test
