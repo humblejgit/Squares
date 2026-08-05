@@ -71,6 +71,34 @@ public final class AuthenticatedSession {
         return request("GET", path, null, false, allowNotFound);
     }
 
+    public HttpTransport.Response getPublic(String path) throws AuthenticationException {
+        return getPublic(path, false);
+    }
+
+    public HttpTransport.Response getPublic(String path, boolean allowNotFound)
+            throws AuthenticationException {
+        HttpTransport.Response response;
+        try {
+            if (!OidcConfiguration.isSecureOrLoopback(configuration.apiBaseUri())) {
+                throw new AuthenticationException(
+                        IdentityClientMessages.get(IdentityClientMessages.HTTPS_REQUIRED));
+            }
+            URI uri = URI.create(configuration.apiBaseUri().toString() + path);
+            response = transport.get(uri, null);
+        } catch (IOException exception) {
+            throw new AuthenticationException(
+                    IdentityClientMessages.get(IdentityClientMessages.SERVER_UNAVAILABLE),
+                    exception);
+        }
+        if (allowNotFound && response.status() == 404) {
+            return response;
+        }
+        if (response.status() < 200 || response.status() >= 300) {
+            throw apiError(response);
+        }
+        return response;
+    }
+
     public HttpTransport.Response putJson(String path, String json)
             throws AuthenticationException {
         return putJson(path, json, Collections.<String, String>emptyMap());

@@ -23,7 +23,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 /** Squares-specific mapping built on the reusable authenticated identity session. */
@@ -185,6 +187,25 @@ public final class OnlineAccountService {
                 session.get("/me/game-submissions/" + gameId).body(), gameId);
     }
 
+    public LeaderboardPage getCasualLeaderboard(int limit, String cursor)
+            throws AuthenticationException {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("Leaderboard limit must be between 1 and 100.");
+        }
+        String path = "/leaderboards/casual?limit=" + limit;
+        if (cursor != null && !cursor.trim().isEmpty()) {
+            path += "&cursor=" + cursor.trim();
+        }
+        return parseLeaderboardPage(session.getPublic(path).body());
+    }
+
+    public LeaderboardEntry getMyCasualLeaderboardEntry()
+            throws AuthenticationException {
+        HttpTransport.Response response = session.get(
+                "/me/leaderboards/casual", true);
+        return response.status() == 404 ? null : parseLeaderboardEntry(response.body());
+    }
+
     public void logout() {
         session.logout();
     }
@@ -249,6 +270,59 @@ public final class OnlineAccountService {
         }
     }
 
+    private LeaderboardPage parseLeaderboardPage(byte[] body)
+            throws AuthenticationException {
+        try {
+            JsonNode json = mapper.readTree(body);
+            if (!"casual".equals(requiredTextUnchecked(json, "board"))
+                    || !"TOTAL_SCORE".equals(requiredTextUnchecked(json, "rankingMetric"))) {
+                throw new IllegalArgumentException("Unexpected leaderboard type");
+            }
+            List<LeaderboardEntry> entries = new ArrayList<LeaderboardEntry>();
+            JsonNode array = json.get("entries");
+            if (array == null || !array.isArray()) {
+                throw new IllegalArgumentException("Missing entries");
+            }
+            for (JsonNode entry : array) {
+                entries.add(parseLeaderboardEntry(entry));
+            }
+            return new LeaderboardPage(
+                    entries,
+                    text(json, "nextCursor"),
+                    Instant.parse(requiredTextUnchecked(json, "generatedAt")));
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new AuthenticationException(
+                    "Squares server vrátil neplatný globální žebříček.", exception);
+        }
+    }
+
+    private LeaderboardEntry parseLeaderboardEntry(byte[] body)
+            throws AuthenticationException {
+        try {
+            return parseLeaderboardEntry(mapper.readTree(body));
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new AuthenticationException(
+                    "Squares server vrátil neplatné umístění hráče.", exception);
+        }
+    }
+
+    private static LeaderboardEntry parseLeaderboardEntry(JsonNode json) {
+        JsonNode player = json.get("player");
+        JsonNode statistics = json.get("statistics");
+        if (player == null || statistics == null) {
+            throw new IllegalArgumentException("Missing leaderboard entry data");
+        }
+        OnlinePlayer onlinePlayer = parsePlayer(player);
+        LeaderboardStatistics values = new LeaderboardStatistics(
+                requiredLong(statistics, "games"),
+                requiredLong(statistics, "wins"),
+                requiredLong(statistics, "draws"),
+                requiredLong(statistics, "losses"),
+                requiredLong(statistics, "totalScore"),
+                requiredDouble(statistics, "winPercentage"));
+        return new LeaderboardEntry(requiredLong(json, "rank"), onlinePlayer, values);
+    }
+
     private static OnlinePlayer parsePlayer(JsonNode json) {
         return new OnlinePlayer(
                 requiredTextUnchecked(json, "playerId"),
@@ -273,6 +347,26 @@ public final class OnlineAccountService {
             throw new IllegalArgumentException("Missing " + field);
         }
         return value;
+    }
+
+    private static long requiredLong(JsonNode json, String field) {
+        JsonNode value = json.get(field);
+        if (value == null || !value.isNumber() || value.asLong() < 0) {
+            throw new IllegalArgumentException("Missing or invalid " + field);
+        }
+        return value.asLong();
+    }
+
+    private static double requiredDouble(JsonNode json, String field) {
+        JsonNode value = json.get(field);
+        if (value == null || !value.isNumber()) {
+            throw new IllegalArgumentException("Missing or invalid " + field);
+        }
+        double number = value.asDouble();
+        if (number < 0.0 || number > 100.0) {
+            throw new IllegalArgumentException("Invalid " + field);
+        }
+        return number;
     }
 
     private static String text(JsonNode json, String field) {

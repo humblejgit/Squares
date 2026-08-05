@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## 4.6.0 - 2026-08-05
+
+- Pridan verejny casual zebricek podle celkoveho skore s kurzorovym strankovanim a samostatnym endpointem pro vlastni umisteni.
+- Dialog statistik obsahuje mistni, globalni casual a budouci ranked kartu; sitova data nacita asynchronne a osetruje nacitani, odhlaseni, prazdny zebricek a nedostupny server.
+- Opravena soubezna synchronizace vysledku, aby pozadavek vznikly behem probihajiciho odesilani nezustal bez obsluhy.
+- Server odmita podvrzene `playerId` u sedadla soupere a prijima identitu pouze pro autentizovaneho odesilatele.
+- Verze projektu a kontrola sitoveho buildu byly sjednoceny na 4.6.0.
+
 ## 4.5.0 - 2026-08-03
 
 - Implementovany idempotentni endpointy `PUT/GET /api/v1/me/game-submissions/{gameId}`.

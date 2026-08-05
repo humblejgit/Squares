@@ -120,7 +120,8 @@ opravneni. Autorizaci vzdy urcuje access token.
 - `GET /meta` - verze API, aktualni verze pravidel a minimalni verze klienta.
 - `GET /players/{playerId}` - verejny profil.
 - `GET /players/{playerId}/statistics` - casual a ranked statistiky.
-- `GET /leaderboards/{board}` - `casual` nebo `ranked`, kurzorove strankovani.
+- `GET /leaderboards/casual` - verejny casual zebricek podle celkoveho skore,
+  kurzorove strankovani.
 
 ### Autentizovane operace
 
@@ -130,6 +131,8 @@ opravneni. Autorizaci vzdy urcuje access token.
 - `PUT /me/installations/{installationId}` - registrace/obnova instalace.
 - `PUT /me/game-submissions/{gameId}` - idempotentni odeslani vysledku.
 - `GET /me/game-submissions/{gameId}` - stav synchronizace vysledku.
+- `GET /me/leaderboards/casual` - vlastni pozice a casual statistiky
+  prihlaseneho hrace; hrac bez zapocitaneho vysledku dostane `404`.
 
 API neprijima `account_id` od klienta. Vlastnika vzdy odvozuje z access tokenu.
 
@@ -271,11 +274,12 @@ lokalizovaneho `detail`.
 
 ## 9. Stav implementace
 
-Ve verzi 4.5.0 jsou hotove serverove moduly, OIDC identita, registrace
+Ve verzi 4.6.0 jsou hotove serverove moduly, OIDC identita, registrace
 instalace, idempotentni game submissions, serverova validace `GameResult`,
 lokalni SQLite outbox a Windows klient vcetne retry/offline stavu.
 
-Zbyva implementovat casual zebricek a pote Android klienta nad stabilnim API.
+Casual zebricek, vlastni umisteni a asynchronni zobrazeni ve Windows klientovi
+jsou implementovane. Dalsim klientem nad stabilnim API muze byt Android.
 
 Mimo rozsah v1 jsou hesla spravovana Squares serverem, WebSocket matchmaking,
 serverove rizena online partie, ranked rating, sezony, moderacni UI a automaticke

@@ -46,6 +46,8 @@ public class OnlineAccountServiceTest {
     private AtomicInteger profileRequests;
     private AtomicInteger installationRequests;
     private AtomicInteger gameRequests;
+    private AtomicInteger leaderboardRequests;
+    private AtomicInteger ownLeaderboardRequests;
     private volatile boolean rejectRefresh;
     private volatile boolean profileMissing;
 
@@ -59,6 +61,25 @@ public class OnlineAccountServiceTest {
         profileRequests = new AtomicInteger();
         installationRequests = new AtomicInteger();
         gameRequests = new AtomicInteger();
+        leaderboardRequests = new AtomicInteger();
+        ownLeaderboardRequests = new AtomicInteger();
+
+        server.createContext("/api/v1/leaderboards/casual", exchange -> {
+            leaderboardRequests.incrementAndGet();
+            if (!"GET".equals(exchange.getRequestMethod())
+                    || exchange.getRequestHeaders().getFirst("Authorization") != null
+                    || !"limit=2".equals(exchange.getRequestURI().getQuery())) {
+                json(exchange, 400, "{\"code\":\"invalid-request\"}");
+                return;
+            }
+            json(exchange, 200, "{"
+                    + "\"board\":\"casual\","
+                    + "\"rankingMetric\":\"TOTAL_SCORE\","
+                    + "\"entries\":[" + leaderboardEntryJson(7) + "],"
+                    + "\"nextCursor\":\"djE6Nw\","
+                    + "\"generatedAt\":\"2026-08-05T18:00:00Z\"}"
+            );
+        });
 
         server.createContext("/issuer/.well-known/openid-configuration", exchange ->
                 json(exchange, 200, "{"
@@ -83,6 +104,17 @@ public class OnlineAccountServiceTest {
             }
         });
         server.createContext("/api/v1/me", exchange -> {
+            if ("/api/v1/me/leaderboards/casual".equals(
+                    exchange.getRequestURI().getPath())) {
+                ownLeaderboardRequests.incrementAndGet();
+                if (!"Bearer fresh-access".equals(
+                        exchange.getRequestHeaders().getFirst("Authorization"))) {
+                    json(exchange, 401, "{\"code\":\"unauthorized\"}");
+                    return;
+                }
+                json(exchange, 200, leaderboardEntryJson(7));
+                return;
+            }
             if (exchange.getRequestURI().getPath().startsWith("/api/v1/me/game-submissions/")) {
                 gameRequests.incrementAndGet();
                 String gameId = exchange.getRequestURI().getPath()
@@ -276,6 +308,35 @@ public class OnlineAccountServiceTest {
         assertEquals(1, gameRequests.get());
     }
 
+    @Test
+    public void loadsPublicCasualLeaderboardWithoutSession() throws Exception {
+        OnlineAccountService service = service(new MemoryTokenStore(null));
+
+        LeaderboardPage page = service.getCasualLeaderboard(2, null);
+
+        assertEquals(1, page.entries().size());
+        assertEquals(7L, page.entries().get(0).rank());
+        assertEquals("tester", page.entries().get(0).player().handle());
+        assertEquals(42L, page.entries().get(0).statistics().games());
+        assertEquals(386L, page.entries().get(0).statistics().totalScore());
+        assertEquals("djE6Nw", page.nextCursor());
+        assertEquals(1, leaderboardRequests.get());
+        assertEquals(0, tokenRequests.get());
+    }
+
+    @Test
+    public void loadsOwnCasualPlacementWithSession() throws Exception {
+        OnlineAccountService service = service(new MemoryTokenStore(new TokenSet(
+                "fresh-access", "refresh", null, now.plusSeconds(600))));
+
+        LeaderboardEntry entry = service.getMyCasualLeaderboardEntry();
+
+        assertEquals(7L, entry.rank());
+        assertEquals("Tester", entry.player().displayName());
+        assertEquals(24L, entry.statistics().wins());
+        assertEquals(1, ownLeaderboardRequests.get());
+    }
+
     private OnlineAccountService service(MemoryTokenStore store) {
         Clock clock = Clock.fixed(now, ZoneOffset.UTC);
         OidcConfiguration configuration = new OidcConfiguration(
@@ -310,6 +371,18 @@ public class OnlineAccountServiceTest {
         try (OutputStream output = exchange.getResponseBody()) {
             output.write(bytes);
         }
+    }
+
+    private static String leaderboardEntryJson(long rank) {
+        return "{"
+                + "\"rank\":" + rank + ","
+                + "\"player\":{"
+                + "\"playerId\":\"00000000-0000-0000-0000-000000000001\","
+                + "\"handle\":\"tester\",\"displayName\":\"Tester\","
+                + "\"revision\":1,\"createdAt\":\"2026-07-27T12:00:00Z\"},"
+                + "\"statistics\":{"
+                + "\"games\":42,\"wins\":24,\"draws\":3,\"losses\":15,"
+                + "\"totalScore\":386,\"winPercentage\":57.142857}}";
     }
 
     private static final class MemoryTokenStore implements TokenStore {

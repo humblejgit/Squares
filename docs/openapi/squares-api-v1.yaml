@@ -275,14 +275,13 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /leaderboards/{board}:
+  /leaderboards/casual:
     get:
       tags: [Public]
-      operationId: getLeaderboard
-      summary: Vrati jednu stranku globalniho zebricku.
+      operationId: getCasualLeaderboard
+      summary: Vrati jednu stranku globalniho casual zebricku.
       security: []
       parameters:
-        - $ref: '#/components/parameters/LeaderboardBoardPath'
         - name: limit
           in: query
           description: Maximalni pocet polozek.
@@ -306,6 +305,26 @@ paths:
                 $ref: '#/components/schemas/LeaderboardPage'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /me/leaderboards/casual:
+    get:
+      tags: [Public]
+      operationId: getMyCasualLeaderboardEntry
+      summary: Vrati vlastni pozici v casual zebricku.
+      responses:
+        '200':
+          description: Pozice a casual statistiky prihlaseneho hrace.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
 components:
@@ -586,7 +605,9 @@ components:
         playerId:
           type: string
           format: uuid
-          description: Jen serverova identita; lokalni PlayerProfile.id se neposila.
+          description: >-
+            Jen serverova identita prihlaseneho odesilajiciho hrace; lokalni
+            PlayerProfile.id ani identita soupere se neposila.
         displayNameSnapshot:
           type: string
           minLength: 1

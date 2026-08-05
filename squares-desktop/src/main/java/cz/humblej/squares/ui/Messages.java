@@ -162,6 +162,20 @@ public final class Messages {
     public static String STATISTICS_COLUMN_LOSSES;
     public static String STATISTICS_COLUMN_SCORE;
     public static String STATISTICS_COLUMN_WIN_PERCENTAGE;
+    public static String STATISTICS_TAB_LOCAL;
+    public static String STATISTICS_TAB_GLOBAL;
+    public static String STATISTICS_TAB_RANKED;
+    public static String STATISTICS_GLOBAL_MY_POSITION;
+    public static String STATISTICS_GLOBAL_LOGGED_OUT;
+    public static String STATISTICS_GLOBAL_NO_RESULT;
+    public static String STATISTICS_GLOBAL_EMPTY;
+    public static String STATISTICS_GLOBAL_LOADING;
+    public static String STATISTICS_GLOBAL_UNAVAILABLE;
+    public static String STATISTICS_GLOBAL_RETRY;
+    public static String STATISTICS_GLOBAL_REFRESH;
+    public static String STATISTICS_GLOBAL_PREVIOUS;
+    public static String STATISTICS_GLOBAL_NEXT;
+    public static String STATISTICS_RANKED_UNAVAILABLE;
     public static String ABOUT_TITLE;
     public static String CHANGE_SIZE_TITLE;
     public static String OPTION_YES;
@@ -285,6 +299,22 @@ public final class Messages {
 
     public static String statisticsScore(long totalScore, double winPercentage) {
         return text("STATISTICS_SCORE", Long.valueOf(totalScore), formatWinPercentage(winPercentage));
+    }
+
+    public static String statisticsGlobalPlayer(String displayName, String handle) {
+        return text("STATISTICS_GLOBAL_PLAYER", displayName, handle);
+    }
+
+    public static String statisticsGlobalRank(long rank) {
+        return text("STATISTICS_GLOBAL_RANK", Long.valueOf(rank));
+    }
+
+    public static String statisticsGlobalUpdated(java.time.Instant generatedAt) {
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
+                .ofLocalizedDateTime(java.time.format.FormatStyle.SHORT)
+                .withLocale(language.locale())
+                .withZone(java.time.ZoneId.systemDefault());
+        return text("STATISTICS_GLOBAL_UPDATED", formatter.format(generatedAt));
     }
 
     public static String statisticsProfileName(PlayerProfile profile) {
@@ -442,6 +472,13 @@ public final class Messages {
         STATISTICS_COLUMN_GAMES = text("STATISTICS_COLUMN_GAMES"); STATISTICS_COLUMN_WINS = text("STATISTICS_COLUMN_WINS");
         STATISTICS_COLUMN_DRAWS = text("STATISTICS_COLUMN_DRAWS"); STATISTICS_COLUMN_LOSSES = text("STATISTICS_COLUMN_LOSSES");
         STATISTICS_COLUMN_SCORE = text("STATISTICS_COLUMN_SCORE"); STATISTICS_COLUMN_WIN_PERCENTAGE = text("STATISTICS_COLUMN_WIN_PERCENTAGE");
+        STATISTICS_TAB_LOCAL = text("STATISTICS_TAB_LOCAL"); STATISTICS_TAB_GLOBAL = text("STATISTICS_TAB_GLOBAL");
+        STATISTICS_TAB_RANKED = text("STATISTICS_TAB_RANKED"); STATISTICS_GLOBAL_MY_POSITION = text("STATISTICS_GLOBAL_MY_POSITION");
+        STATISTICS_GLOBAL_LOGGED_OUT = text("STATISTICS_GLOBAL_LOGGED_OUT"); STATISTICS_GLOBAL_NO_RESULT = text("STATISTICS_GLOBAL_NO_RESULT");
+        STATISTICS_GLOBAL_EMPTY = text("STATISTICS_GLOBAL_EMPTY"); STATISTICS_GLOBAL_LOADING = text("STATISTICS_GLOBAL_LOADING");
+        STATISTICS_GLOBAL_UNAVAILABLE = text("STATISTICS_GLOBAL_UNAVAILABLE"); STATISTICS_GLOBAL_RETRY = text("STATISTICS_GLOBAL_RETRY");
+        STATISTICS_GLOBAL_REFRESH = text("STATISTICS_GLOBAL_REFRESH"); STATISTICS_GLOBAL_PREVIOUS = text("STATISTICS_GLOBAL_PREVIOUS");
+        STATISTICS_GLOBAL_NEXT = text("STATISTICS_GLOBAL_NEXT"); STATISTICS_RANKED_UNAVAILABLE = text("STATISTICS_RANKED_UNAVAILABLE");
         ABOUT_TITLE = text("ABOUT_TITLE"); CHANGE_SIZE_TITLE = text("CHANGE_SIZE_TITLE"); OPTION_YES = text("OPTION_YES");
         OPTION_NO = text("OPTION_NO"); OPTION_OK = text("OPTION_OK"); OPTION_CANCEL = text("OPTION_CANCEL");
         RESTART_BUTTON = text("RESTART_BUTTON"); RESTART_TITLE = text("RESTART_TITLE"); RESTART_CONFIRM = text("RESTART_CONFIRM");

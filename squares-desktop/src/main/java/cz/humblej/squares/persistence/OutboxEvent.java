@@ -10,8 +10,8 @@ public final class OutboxEvent {
     private final PlayerResult.Seat submittedBySeat;
     private final int attempts;
 
-    OutboxEvent(UUID eventId, String payload,
-                PlayerResult.Seat submittedBySeat, int attempts) {
+    public OutboxEvent(UUID eventId, String payload,
+                       PlayerResult.Seat submittedBySeat, int attempts) {
         this.eventId = eventId;
         this.payload = payload;
         this.submittedBySeat = submittedBySeat;

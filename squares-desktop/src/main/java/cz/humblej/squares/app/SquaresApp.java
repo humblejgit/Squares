@@ -448,7 +448,7 @@ public final class SquaresApp {
         }
 
         try {
-            StatisticsDialog.show(frame, statisticsStore, currentProfile);
+            StatisticsDialog.show(frame, statisticsStore, currentProfile, ONLINE_ACCOUNT);
         } finally {
             if (pauseClock) {
                 panel.setClockPausedByDialog(false);

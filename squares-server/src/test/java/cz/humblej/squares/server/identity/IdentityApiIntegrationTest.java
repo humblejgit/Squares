@@ -68,6 +68,9 @@ class IdentityApiIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private tools.jackson.databind.ObjectMapper mapper;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -417,6 +420,98 @@ class IdentityApiIntegrationTest {
                         .content(invalid))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("invalid-game-submission"));
+
+        String forgedOpponent = localSubmission(playerId, 8).replace(
+                "\"playerType\":\"GUEST\",\"displayNameSnapshot\":\"Blue\"",
+                "\"playerType\":\"PROFILE\",\"playerId\":\""
+                        + UUID.randomUUID()
+                        + "\",\"displayNameSnapshot\":\"Blue\"");
+        mockMvc.perform(put("/api/v1/me/game-submissions/{gameId}", UUID.randomUUID())
+                        .with(identity(subject))
+                        .header("X-Squares-Installation-Id", installationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(forgedOpponent))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("invalid-game-submission"));
+    }
+
+    @Test
+    void returnsPaginatedCasualLeaderboardAndOwnPlacement() throws Exception {
+        String firstSubject = unique("leader-first");
+        String secondSubject = unique("leader-second");
+        String thirdSubject = unique("leader-third");
+        UUID firstPlayer = resolvePlayerId(firstSubject);
+        UUID secondPlayer = resolvePlayerId(secondSubject);
+        UUID thirdPlayer = resolvePlayerId(thirdSubject);
+        String firstHandle = unique("alpha").substring(0, 20);
+        String secondHandle = unique("bravo").substring(0, 20);
+        String thirdHandle = unique("charlie").substring(0, 20);
+        putProfile(firstSubject, firstHandle, "Alpha");
+        putProfile(secondSubject, secondHandle, "Bravo");
+        putProfile(thirdSubject, thirdHandle, "Charlie");
+        UUID firstInstallation = registerInstallation(firstSubject);
+        UUID secondInstallation = registerInstallation(secondSubject);
+        UUID thirdInstallation = registerInstallation(thirdSubject);
+
+        submit(firstSubject, firstInstallation, UUID.randomUUID(),
+                localSubmission(firstPlayer, 20), 201);
+        submit(firstSubject, firstInstallation, UUID.randomUUID(),
+                localSubmission(firstPlayer, 20), 201);
+        submit(secondSubject, secondInstallation, UUID.randomUUID(),
+                localSubmission(secondPlayer, 35), 201);
+        submit(thirdSubject, thirdInstallation, UUID.randomUUID(),
+                localSubmission(thirdPlayer, 40), 201);
+
+        String firstPage = mockMvc.perform(get("/api/v1/leaderboards/casual")
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.board").value("casual"))
+                .andExpect(jsonPath("$.rankingMetric").value("TOTAL_SCORE"))
+                .andExpect(jsonPath("$.entries.length()").value(2))
+                .andExpect(jsonPath("$.entries[0].rank").value(1))
+                .andExpect(jsonPath("$.entries[0].player.handle").value(firstHandle))
+                .andExpect(jsonPath("$.entries[0].statistics.games").value(2))
+                .andExpect(jsonPath("$.entries[0].statistics.totalScore").value(40))
+                .andExpect(jsonPath("$.entries[1].rank").value(2))
+                .andExpect(jsonPath("$.entries[1].player.handle").value(thirdHandle))
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        String cursor = mapper.readTree(firstPage).path("nextCursor").asText();
+
+        mockMvc.perform(get("/api/v1/leaderboards/casual")
+                        .param("limit", "2")
+                        .param("cursor", cursor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].rank").value(3))
+                .andExpect(jsonPath("$.entries[0].player.handle").value(secondHandle))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/me/leaderboards/casual")
+                        .with(identity(secondSubject)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rank").value(3))
+                .andExpect(jsonPath("$.player.playerId").value(secondPlayer.toString()))
+                .andExpect(jsonPath("$.statistics.games").value(1))
+                .andExpect(jsonPath("$.statistics.wins").value(1))
+                .andExpect(jsonPath("$.statistics.totalScore").value(35));
+    }
+
+    @Test
+    void handlesEmptyMissingAndInvalidLeaderboardStates() throws Exception {
+        String subject = unique("leader-empty");
+        String handle = unique("empty").substring(0, 20);
+        putProfile(subject, handle, "No games");
+
+        mockMvc.perform(get("/api/v1/me/leaderboards/casual"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/me/leaderboards/casual")
+                        .with(identity(subject)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/leaderboards/casual")
+                        .param("cursor", "not-a-cursor"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid-leaderboard-cursor"));
     }
 
     private UUID resolvePlayerId(String subject) throws Exception {
@@ -441,6 +536,16 @@ class IdentityApiIntegrationTest {
                                 """))
                 .andExpect(status().isCreated());
         return installationId;
+    }
+
+    private void putProfile(String subject, String handle, String displayName) throws Exception {
+        mockMvc.perform(put("/api/v1/me/profile")
+                        .with(identity(subject))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"handle":"%s","displayName":"%s"}
+                                """.formatted(handle, displayName)))
+                .andExpect(status().isCreated());
     }
 
     private void submit(String subject, UUID installationId, UUID gameId,

@@ -146,6 +146,10 @@ class GameSubmissionService {
                 throw new InvalidSubmissionException(
                         ServerMessageKeys.SUBMISSION_PROFILE_PLAYER_ID);
             }
+            if (player.seat() != request.submittedBySeat() && player.playerId() != null) {
+                throw new InvalidSubmissionException(
+                        ServerMessageKeys.SUBMISSION_OTHER_PLAYER_ID);
+            }
         }
         if (red.playerId() != null && red.playerId().equals(blue.playerId())) {
             throw new InvalidSubmissionException(ServerMessageKeys.SUBMISSION_SAME_PLAYER);

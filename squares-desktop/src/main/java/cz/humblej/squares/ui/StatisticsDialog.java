@@ -2,6 +2,7 @@ package cz.humblej.squares.ui;
 
 import cz.humblej.squares.model.LocalProfileStatistics;
 import cz.humblej.squares.model.PlayerProfile;
+import cz.humblej.squares.auth.OnlineAccountService;
 import cz.humblej.squares.persistence.StatisticsStore;
 import cz.humblej.squares.persistence.StorageException;
 
@@ -12,6 +13,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTabbedPane;
 import javax.swing.ListSelectionModel;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
@@ -25,7 +27,9 @@ public final class StatisticsDialog {
     private StatisticsDialog() {
     }
 
-    public static void show(JFrame owner, StatisticsStore store, PlayerProfile currentProfile) {
+    public static void show(JFrame owner, StatisticsStore store,
+                            PlayerProfile currentProfile,
+                            OnlineAccountService onlineAccount) {
         List<LocalProfileStatistics> leaderboard;
         try {
             leaderboard = store.findLocalLeaderboard();
@@ -35,8 +39,37 @@ public final class StatisticsDialog {
             return;
         }
 
-        JOptionPane.showMessageDialog(owner, createContent(leaderboard, currentProfile),
+        JOptionPane.showMessageDialog(owner,
+                createTabbedContent(leaderboard, currentProfile,
+                        new LeaderboardClient.Online(onlineAccount)),
                 Messages.STATISTICS_TITLE, JOptionPane.PLAIN_MESSAGE);
+    }
+
+    static JTabbedPane createTabbedContent(
+            List<LocalProfileStatistics> leaderboard,
+            PlayerProfile currentProfile,
+            LeaderboardClient leaderboardClient) {
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab(Messages.STATISTICS_TAB_LOCAL,
+                createContent(leaderboard, currentProfile));
+        GlobalLeaderboardPanel global = new GlobalLeaderboardPanel(leaderboardClient);
+        tabs.addTab(Messages.STATISTICS_TAB_GLOBAL, global);
+        tabs.addTab(Messages.STATISTICS_TAB_RANKED,
+                rankedUnavailablePanel());
+        tabs.addChangeListener(event -> {
+            if (tabs.getSelectedComponent() == global) {
+                global.loadInitial();
+            }
+        });
+        return tabs;
+    }
+
+    private static JPanel rankedUnavailablePanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setPreferredSize(new Dimension(780, 350));
+        panel.add(new JLabel(Messages.STATISTICS_RANKED_UNAVAILABLE, JLabel.CENTER),
+                BorderLayout.CENTER);
+        return panel;
     }
 
     public static JPanel createContent(List<LocalProfileStatistics> leaderboard, PlayerProfile currentProfile) {

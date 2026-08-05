@@ -30,6 +30,8 @@ public final class ServerMessageKeys {
             "squares.api.invalid-submission.authenticated-player";
     public static final String SUBMISSION_PROFILE_PLAYER_ID =
             "squares.api.invalid-submission.profile-player-id";
+    public static final String SUBMISSION_OTHER_PLAYER_ID =
+            "squares.api.invalid-submission.other-player-id";
     public static final String SUBMISSION_SAME_PLAYER =
             "squares.api.invalid-submission.same-player";
     public static final String SUBMISSION_UNIQUE_SEATS =
@@ -38,6 +40,10 @@ public final class ServerMessageKeys {
             "squares.api.invalid-submission.both-seats";
     public static final String SUBMISSION_DOMAIN_RULES =
             "squares.api.invalid-submission.domain-rules";
+    public static final String LEADERBOARD_INVALID_CURSOR_TITLE =
+            "squares.api.leaderboard.invalid-cursor.title";
+    public static final String LEADERBOARD_INVALID_CURSOR_DETAIL =
+            "squares.api.leaderboard.invalid-cursor.detail";
 
     private ServerMessageKeys() {
     }

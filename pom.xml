@@ -5,7 +5,7 @@
 
     <groupId>cz.humblej</groupId>
     <artifactId>squares-parent</artifactId>
-    <version>4.5.0</version>
+    <version>4.6.0</version>
     <packaging>pom</packaging>
     <name>Squares parent</name>
 

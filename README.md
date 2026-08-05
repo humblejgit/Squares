@@ -2,9 +2,9 @@
 
 Java okenni hra pro dva hrace inspirovana hrou ctverecky.
 
-Aktualni verze: **4.5.0**.
+Aktualni verze: **4.6.0**.
 
-## Funkce verze 4.5.0
+## Funkce verze 4.6.0
 
 - idempotentni odesilani lokalnich, CPU a LAN vysledku pres `PUT /api/v1/me/game-submissions/{gameId}`
 - serverova kontrola identity odesilatele, instalace a vsech domenovych invariantu vysledku
@@ -12,6 +12,8 @@ Aktualni verze: **4.5.0**.
 - lokalni outbox se stavy pending, sending, retry, sent a dead vcetne obnovy prerusene synchronizace
 - automaticka synchronizace po dokonceni hry a rucni opakovani z dialogu online uctu
 - zobrazeni poctu cekajicich, odesilanych, odeslanych a chybnych vysledku
+- verejny globalni casual zebricek podle celkoveho skore s kurzorovym strankovanim
+- vlastni globalni umisteni prihlaseneho hrace a asynchronni karty statistik bez blokovani herniho okna
 - ceske a anglicke textove katalogy s volbou jazyka v menu `Hra / Jazyk`
 - jednotny jazyk klienta, prihlaseni a serverovych chyb pomoci `Accept-Language`
 - SQLite schema 3 uchovava stav podani vraceny serverem a exponencialni odklad opakovani

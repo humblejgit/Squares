@@ -6,7 +6,7 @@ public final class OnlinePlayer {
     private final String displayName;
     private final long revision;
 
-    OnlinePlayer(String playerId, String handle, String displayName, long revision) {
+    public OnlinePlayer(String playerId, String handle, String displayName, long revision) {
         this.playerId = playerId;
         this.handle = handle;
         this.displayName = displayName;
